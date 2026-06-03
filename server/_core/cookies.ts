@@ -23,7 +23,7 @@ function isSecureRequest(req: Request) {
 
 export function getSessionCookieOptions(
   req: Request
-): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
+): any {
   const hostname = (req as any).hostname;
   const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || LOCAL_HOSTS.has(hostname);
 
