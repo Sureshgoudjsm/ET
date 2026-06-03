@@ -13,7 +13,7 @@ function getQueryParam(req: Request, key: string): string | undefined {
 
 export function registerOAuthRoutes(app: Express) {
   // Support local mock login when OAuth server URL is unconfigured
-  app.get("/app-auth", async (req: Request, res: Response) => {
+  const handleMockLogin = async (req: Request, res: Response) => {
     if (!ENV.oAuthServerUrl) {
       try {
         const mockOpenId = "dev_user_1";
@@ -43,7 +43,10 @@ export function registerOAuthRoutes(app: Express) {
     } else {
       res.status(404).send("Not Found");
     }
-  });
+  };
+
+  app.get("/app-auth", handleMockLogin);
+  app.get("/api/app-auth", handleMockLogin);
 
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
