@@ -1,5 +1,6 @@
 import { eq, and, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2";
 import {
   InsertUser,
   users,
@@ -17,16 +18,46 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
+let hasAttemptedConnection = false;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (hasAttemptedConnection) {
+    return _db;
+  }
+
+  if (process.env.DATABASE_URL) {
+    hasAttemptedConnection = true;
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const url = process.env.DATABASE_URL;
+      if (!url.startsWith("mysql://") && !url.startsWith("mysql2://") && !url.includes("mysql")) {
+        throw new Error("DATABASE_URL is not a MySQL connection string");
+      }
+
+      _pool = mysql.createPool({
+        uri: url,
+        connectionLimit: 5,
+        connectTimeout: 5000,
+      });
+
+      // Test connection and verify schema exists (users table)
+      await _pool.promise().query("SELECT 1 FROM users LIMIT 1").catch((err) => {
+        throw new Error(`Schema check failed (is the DB migrated?): ${err.message}`);
+      });
+
+      _db = drizzle(_pool);
+      console.log("[Database] Connected successfully to MySQL database.");
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.warn("[Database] Failed to connect, falling back to in-memory store:", error);
       _db = null;
+      if (_pool) {
+        await _pool.promise().end().catch(() => {});
+        _pool = null;
+      }
     }
+  } else {
+    hasAttemptedConnection = true;
   }
   return _db;
 }
