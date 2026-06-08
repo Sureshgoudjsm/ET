@@ -1,3 +1,5 @@
+import app from "../server/app";
+
 export default async function handler(req: any, res: any) {
   const steps: any[] = [];
   
@@ -34,6 +36,7 @@ export default async function handler(req: any, res: any) {
 
   res.status(200).json({
     nodeVersion: process.version,
+    appLoaded: !!app,
     steps,
   });
 }
