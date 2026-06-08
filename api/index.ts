@@ -1,20 +1,16 @@
-let appInstance: any = null;
+import app from "../server/app";
 
 process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION AT STARTUP:", err);
+  console.error("UNCAUGHT EXCEPTION:", err);
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("UNHANDLED REJECTION AT STARTUP:", reason);
+  console.error("UNHANDLED REJECTION:", reason);
 });
 
 export default async function handler(req: any, res: any) {
   try {
-    if (!appInstance) {
-      const module = await import("../server/app");
-      appInstance = module.default;
-    }
-    return appInstance(req, res);
+    return app(req, res);
   } catch (err: any) {
     console.error("CRITICAL RUNTIME ERROR:", err);
     res.status(500).json({
