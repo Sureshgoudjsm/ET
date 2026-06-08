@@ -15,6 +15,9 @@ import GoldLoans from "./pages/GoldLoans";
 import CreditCardDebt from "./pages/CreditCardDebt";
 import ChittiSavings from "./pages/ChittiSavings";
 import ExpenseTracker from "./pages/ExpenseTracker";
+import Settings from "./pages/Settings";
+import Notifications from "./pages/Notifications";
+import ExportData from "./pages/ExportData";
 import DashboardLayout from "./components/DashboardLayout";
 import { useAuth } from "./_core/hooks/useAuth";
 
@@ -49,6 +52,9 @@ function Router() {
           <Route path="/year" component={YearView} />
           <Route path="/balance" component={BalanceTracker} />
           <Route path="/persons" component={Persons} />
+          <Route path="/settings" component={Settings} />
+          <Route path="/notifications" component={Notifications} />
+          <Route path="/export" component={ExportData} />
           <Route path="/404" component={NotFound} />
           <Route component={NotFound} />
         </Switch>
@@ -68,7 +74,7 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
+      <ThemeProvider defaultTheme="light" switchable={true}>
         <TooltipProvider>
           <Toaster />
           <Router />

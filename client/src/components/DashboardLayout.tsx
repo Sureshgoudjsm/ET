@@ -16,29 +16,66 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Wallet, TrendingUp, Calendar, BarChart3, Users, Scale, CreditCard, Coins, Receipt, Gem } from "lucide-react";
+import { 
+  LayoutDashboard, LogOut, PanelLeft, Wallet, TrendingUp, Calendar, BarChart3, 
+  Users, Scale, CreditCard, Coins, Receipt, Gem, Settings, Bell, Download, ChevronRight 
+} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: TrendingUp, label: "EMI Tracker", path: "/emi" },
-  { icon: Wallet, label: "Loan Tracker", path: "/loans" },
-  { icon: Gem, label: "Gold Loans", path: "/gold-loans" },
-  { icon: CreditCard, label: "Credit Card Debt", path: "/credit-cards" },
-  { icon: Coins, label: "Chitti Savings", path: "/chittis" },
-  { icon: Receipt, label: "General Expenses", path: "/expenses" },
-  { icon: Calendar, label: "Month View", path: "/month" },
-  { icon: BarChart3, label: "Year View", path: "/year" },
-  { icon: Scale, label: "Balance Tracker", path: "/balance" },
-  { icon: Users, label: "Persons", path: "/persons" },
+const groups = [
+  {
+    id: "overview",
+    label: "Overview",
+    icon: LayoutDashboard,
+    items: [
+      { label: "Dashboard", path: "/", icon: LayoutDashboard },
+      { label: "Month View", path: "/month", icon: Calendar },
+      { label: "Year View", path: "/year", icon: BarChart3 },
+      { label: "Balance Tracker", path: "/balance", icon: Scale },
+    ]
+  },
+  {
+    id: "debt",
+    label: "Debt & EMIs",
+    icon: CreditCard,
+    items: [
+      { label: "EMI Tracker", path: "/emi", icon: TrendingUp },
+      { label: "Loan Tracker", path: "/loans", icon: Wallet },
+      { label: "Gold Loans", path: "/gold-loans", icon: Gem },
+      { label: "CC Debt", path: "/credit-cards", icon: CreditCard },
+    ]
+  },
+  {
+    id: "savings",
+    label: "Savings & Expenses",
+    icon: Coins,
+    items: [
+      { label: "Chitti Savings", path: "/chittis", icon: Coins },
+      { label: "General Expenses", path: "/expenses", icon: Receipt },
+    ]
+  },
+  {
+    id: "settings",
+    label: "People & Settings",
+    icon: Users,
+    items: [
+      { label: "Manage People", path: "/persons", icon: Users },
+      { label: "Settings", path: "/settings", icon: Settings },
+      { label: "Notifications", path: "/notifications", icon: Bell },
+      { label: "Export Data", path: "/export", icon: Download },
+    ]
+  }
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -121,14 +158,40 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+
+  const allMenuItems = groups.flatMap(group => group.items);
+  const activeMenuItem = allMenuItems.find(item => item.path === location);
+  const activeGroup = groups.find(group => group.items.some(item => item.path === location)) || groups[0];
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    overview: true,
+    debt: true,
+    savings: true,
+    settings: true,
+  });
 
   useEffect(() => {
     if (isCollapsed) {
       setIsResizing(false);
     }
   }, [isCollapsed]);
+
+  // Hide scrollbar utility for Webkit browsers in mobile sub-tab bar
+  useEffect(() => {
+    if (isMobile) {
+      const style = document.createElement("style");
+      style.innerHTML = `
+        .scrollbar-none::-webkit-scrollbar {
+          display: none;
+        }
+      `;
+      document.head.appendChild(style);
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -162,122 +225,232 @@ function DashboardLayoutContent({
 
   return (
     <>
-      <div className="relative" ref={sidebarRef}>
-        <Sidebar
-          collapsible="icon"
-          className="border-r-0"
-          disableTransition={isResizing}
-        >
-          <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
-              <button
-                onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-sidebar-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label="Toggle navigation"
-              >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
-              </button>
-              {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
+      {!isMobile && (
+        <div className="relative" ref={sidebarRef}>
+          <Sidebar
+            collapsible="icon"
+            className="border-r-0"
+            disableTransition={isResizing}
+          >
+            <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
+              <div className="flex items-center gap-3 px-2 transition-all w-full">
+                <button
+                  onClick={toggleSidebar}
+                  className="h-8 w-8 flex items-center justify-center hover:bg-sidebar-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                  aria-label="Toggle navigation"
+                >
+                  <PanelLeft className="h-4 w-4 text-muted-foreground" />
+                </button>
+                {!isCollapsed ? (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
+                      <span className="text-primary-foreground font-bold text-sm">₹</span>
+                    </div>
+                    <span className="font-semibold tracking-tight truncate text-sidebar-foreground">
+                      Expense Tracker
+                    </span>
+                  </div>
+                ) : (
                   <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
                     <span className="text-primary-foreground font-bold text-sm">₹</span>
                   </div>
-                  <span className="font-semibold tracking-tight truncate text-sidebar-foreground">
-                    Expense Tracker
-                  </span>
-                </div>
-              ) : (
-                <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
-                  <span className="text-primary-foreground font-bold text-sm">₹</span>
-                </div>
-              )}
-            </div>
-          </SidebarHeader>
+                )}
+              </div>
+            </SidebarHeader>
 
-          <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-2">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
+            <SidebarContent className="gap-0 py-2">
+              {groups.map((group) => {
+                const isGroupActive = group.items.some((item) => item.path === location);
+                const isOpen = isCollapsed ? true : openGroups[group.id];
+
                 return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all duration-150 font-normal rounded-lg ${
-                        isActive
-                          ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                          : "hover:bg-sidebar-accent text-sidebar-foreground"
-                      }`}
-                    >
-                      <item.icon
-                        className={`h-4 w-4 shrink-0 ${isActive ? "text-primary-foreground" : "text-muted-foreground"}`}
-                      />
-                      <span className="font-medium">{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <Collapsible
+                    key={group.id}
+                    open={isOpen}
+                    onOpenChange={(openState) => {
+                      if (!isCollapsed) {
+                        setOpenGroups((prev) => ({ ...prev, [group.id]: openState }));
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    <SidebarGroup className="py-1">
+                      {!isCollapsed && (
+                        <SidebarGroupLabel asChild>
+                          <CollapsibleTrigger asChild>
+                            <button
+                              className={`flex w-full items-center justify-between text-xs font-semibold px-2 py-1.5 rounded-lg transition-all focus:outline-none ${
+                                isGroupActive 
+                                  ? "text-primary hover:bg-primary/5" 
+                                  : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <group.icon className="h-3.5 w-3.5 shrink-0" />
+                                <span>{group.label}</span>
+                              </div>
+                              <ChevronRight className={`ml-auto h-3 w-3 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
+                            </button>
+                          </CollapsibleTrigger>
+                        </SidebarGroupLabel>
+                      )}
+                      
+                      <CollapsibleContent className="transition-all duration-200">
+                        <SidebarGroupContent>
+                          <SidebarMenu className={isCollapsed ? "" : "pl-2"}>
+                            {group.items.map((item) => {
+                              const isActive = location === item.path;
+                              return (
+                                <SidebarMenuItem key={item.path}>
+                                  <SidebarMenuButton
+                                    isActive={isActive}
+                                    onClick={() => setLocation(item.path)}
+                                    tooltip={item.label}
+                                    className={`h-9 transition-all duration-150 font-normal rounded-lg ${
+                                      isActive
+                                        ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                                        : "hover:bg-sidebar-accent text-sidebar-foreground"
+                                    }`}
+                                  >
+                                    <item.icon
+                                      className={`h-4 w-4 shrink-0 ${isActive ? "text-primary-foreground" : "text-muted-foreground"}`}
+                                    />
+                                    <span className="font-medium text-sm">{item.label}</span>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              );
+                            })}
+                          </SidebarMenu>
+                        </SidebarGroupContent>
+                      </CollapsibleContent>
+                    </SidebarGroup>
+                  </Collapsible>
                 );
               })}
-            </SidebarMenu>
-          </SidebarContent>
+            </SidebarContent>
 
-          <SidebarFooter className="p-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarFooter>
-        </Sidebar>
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => {
-            if (isCollapsed) return;
-            setIsResizing(true);
-          }}
-          style={{ zIndex: 50 }}
-        />
-      </div>
+            <SidebarFooter className="p-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <Avatar className="h-9 w-9 border shrink-0">
+                      <AvatarFallback className="text-xs font-medium">
+                        {user?.name?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                      <p className="text-sm font-medium truncate leading-none">
+                        {user?.name || "-"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate mt-1.5">
+                        {user?.email || "-"}
+                      </p>
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    onClick={logout}
+                    className="cursor-pointer text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarFooter>
+          </Sidebar>
+          <div
+            className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
+            onMouseDown={() => {
+              if (isCollapsed) return;
+              setIsResizing(true);
+            }}
+            style={{ zIndex: 50 }}
+          />
+        </div>
+      )}
 
       <SidebarInset>
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
+        {isMobile ? (
+          <>
+            {/* Mobile Top Header */}
+            <div className="flex border-b h-14 items-center justify-between bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
+                  <span className="text-primary-foreground font-bold text-xs">₹</span>
                 </div>
+                <span className="font-semibold tracking-tight text-foreground text-sm">
+                  Expense Tracker
+                </span>
               </div>
+              
+              {/* Quick links / Notification Status Icon */}
+              <button 
+                onClick={() => setLocation("/notifications")} 
+                className="relative h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Bell className="h-4.5 w-4.5" />
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
+              </button>
             </div>
+            
+            {/* Mobile Sub-tabs navigation */}
+            {activeGroup && (
+              <div 
+                className="flex items-center gap-1.5 px-4 py-2 border-b overflow-x-auto scrollbar-none bg-background/50 backdrop-blur sticky top-14 z-30"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {activeGroup.items.map(item => {
+                  const isActive = location === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => setLocation(item.path)}
+                      className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                        isActive
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : null}
+
+        <main className="flex-1 p-4 pb-24 md:pb-4">{children}</main>
+
+        {/* Mobile Bottom Tab Bar */}
+        {isMobile && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border/60 flex justify-around items-center h-16 pb-safe">
+            {groups.map((group) => {
+              const isGroupActive = group.items.some((item) => item.path === location);
+              return (
+                <button
+                  key={group.id}
+                  onClick={() => {
+                    // Navigate to the first item in the group
+                    setLocation(group.items[0].path);
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1 text-center transition-all ${
+                    isGroupActive
+                      ? "text-primary scale-105"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <group.icon className="h-5 w-5" />
+                  <span className="text-[10px] font-semibold tracking-tight leading-none">
+                    {group.label.split(" & ")[0]}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>
   );
