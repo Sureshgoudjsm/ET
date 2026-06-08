@@ -91,7 +91,7 @@ export default function Home() {
             </p>
 
             {/* CTA */}
-            <div className="flex flex-col sm:flex-row gap-3 justify-center mb-16">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
               <Button
                 id="main-signin-btn"
                 onClick={() => (window.location.href = getLoginUrl())}
@@ -100,6 +100,15 @@ export default function Home() {
               >
                 Get Started — It's Free
               </Button>
+            </div>
+
+            {/* Trust badges */}
+            <div className="flex items-center justify-center gap-4 mb-12 flex-wrap text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">🔒 Your data stays yours</span>
+              <span className="text-border">·</span>
+              <span className="flex items-center gap-1.5">🏦 Account-isolated storage</span>
+              <span className="text-border">·</span>
+              <span className="flex items-center gap-1.5">📤 Export anytime as JSON</span>
             </div>
           </div>
 

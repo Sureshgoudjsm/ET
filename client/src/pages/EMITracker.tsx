@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatDate, formatMonthYear } from "@/lib/utils";
-import { Plus, Edit2, Trash2, TrendingUp, CalendarDays, AlertCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, TrendingUp, CalendarDays, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -362,6 +363,35 @@ export default function EMITracker() {
                             )}
                           </div>
                         </div>
+
+                        {/* Debt Payoff Progress Bar */}
+                        {(() => {
+                          const start = new Date(emi.startDate);
+                          const end = emi.endDate ? new Date(emi.endDate) : new Date();
+                          const now = new Date();
+                          const totalMonths = Math.max(1,
+                            (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+                          );
+                          const paidMonths = Math.max(0, Math.min(totalMonths,
+                            (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())
+                          ));
+                          const pct = Math.round((paidMonths / totalMonths) * 100);
+                          const isComplete = pct >= 100;
+                          return (
+                            <div className="mt-3 space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="text-muted-foreground">{isComplete ? "Fully cleared" : `${paidMonths}/${totalMonths} months paid`}</span>
+                                <span className={`font-semibold ${isComplete ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
+                                  {isComplete ? <CheckCircle2 className="h-3.5 w-3.5 inline" /> : `${pct}%`}
+                                </span>
+                              </div>
+                              <Progress
+                                value={pct}
+                                className={`h-1.5 rounded-full ${isComplete ? "[&>div]:bg-emerald-500" : "[&>div]:bg-primary"}`}
+                              />
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="flex gap-1 ml-2 shrink-0">

@@ -5,9 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { useState } from "react";
-import { TrendingUp, CheckCircle2, Clock, BarChart3, Download } from "lucide-react";
+import { TrendingUp, CheckCircle2, Clock, BarChart3, Download, LineChart } from "lucide-react";
 import { toast } from "sonner";
 
 const MONTHS_FULL = [
@@ -45,6 +45,7 @@ export default function YearView() {
   const { user } = useAuth();
   const currentDate = new Date();
   const [year, setYear] = useState(currentDate.getFullYear().toString());
+  const [chartMode, setChartMode] = useState<"bar" | "area">("bar");
 
   const { data: breakdown, isLoading } = trpc.balance.getMonthlyBreakdown.useQuery(
     { year: parseInt(year) },
@@ -234,35 +235,67 @@ export default function YearView() {
       {/* Chart */}
       <Card className="card-premium border-0">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            Monthly Breakdown — {year}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">Paid vs Pending amounts per month</p>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Monthly Breakdown — {year}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">Paid vs Pending amounts per month</p>
+            </div>
+            <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+              <button
+                onClick={() => setChartMode("bar")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  chartMode === "bar" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <BarChart3 className="h-3.5 w-3.5" /> Bar
+              </button>
+              <button
+                onClick={() => setChartMode("area")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  chartMode === "area" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LineChart className="h-3.5 w-3.5" /> Trend
+              </button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={360}>
-            <BarChart data={chartData} barGap={4} barCategoryGap="25%">
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
-                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--accent)", radius: 4 }} />
-              <Legend
-                wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }}
-              />
-              <Bar dataKey="paid" name="Paid" fill="oklch(0.62 0.18 150)" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="pending" name="Pending" fill="oklch(0.72 0.18 75)" radius={[6, 6, 0, 0]} />
-            </BarChart>
+            {chartMode === "bar" ? (
+              <BarChart data={chartData} barGap={4} barCategoryGap="25%">
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--accent)", radius: 4 }} />
+                <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }} />
+                <Bar dataKey="paid" name="Paid" fill="oklch(0.62 0.18 150)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="pending" name="Pending" fill="oklch(0.72 0.18 75)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            ) : (
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="paidGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="oklch(0.62 0.18 150)" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="oklch(0.62 0.18 150)" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="pendingGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="oklch(0.72 0.18 75)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="oklch(0.72 0.18 75)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }} />
+                <Area type="monotone" dataKey="paid" name="Paid" stroke="oklch(0.62 0.18 150)" strokeWidth={2.5} fill="url(#paidGrad)" dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Area type="monotone" dataKey="pending" name="Pending" stroke="oklch(0.72 0.18 75)" strokeWidth={2.5} fill="url(#pendingGrad)" dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </CardContent>
       </Card>

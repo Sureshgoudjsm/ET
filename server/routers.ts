@@ -6,6 +6,7 @@ import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
+import { invokeLLM } from "./_core/llm";
 
 // ============ Validation Schemas ============
 const PersonSchema = z.object({
@@ -744,6 +745,36 @@ const goldLoanRouter = router({
   }),
 });
 
+// ============ AI Router ============
+const aiRouter = router({
+  parseEntry: protectedProcedure
+    .input(z.object({ text: z.string().min(1).max(500) }))
+    .mutation(async ({ input }) => {
+      const systemPrompt = `You are a financial assistant for an Indian household expense tracker. 
+Parse the user's natural language input into structured fields.
+Always respond with ONLY valid JSON, no markdown.
+Fields: type ("expense"|"loan"|"payment"|null), amount (integer in paise, null if unknown), personName (string|null), category (string|null, one of: Groceries, Food & Dining, Utilities, Transport, Entertainment, Shopping, Medical, Other), date (ISO date string YYYY-MM-DD or null), notes (string|null), confidence ("high"|"medium"|"low"), suggestion (brief 1-sentence action tip).
+Today is ${new Date().toISOString().split('T')[0]}. Convert ₹ amounts to paise (multiply by 100).`;
+
+      try {
+        const result = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: input.text },
+          ],
+          responseFormat: { type: "json_object" },
+          maxTokens: 512,
+        });
+        const content = result.choices[0]?.message?.content;
+        const text = typeof content === "string" ? content : JSON.stringify(content);
+        return JSON.parse(text);
+      } catch (error) {
+        console.error("AI parseEntry error:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI parsing failed. Please try again." });
+      }
+    }),
+});
+
 // ============ Main Router ============
 export const appRouter = router({
   system: systemRouter,
@@ -767,6 +798,7 @@ export const appRouter = router({
   chitti: chittiRouter,
   expense: expenseRouter,
   goldLoan: goldLoanRouter,
+  ai: aiRouter,
 });
 
 export type AppRouter = typeof appRouter;

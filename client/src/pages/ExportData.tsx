@@ -1,12 +1,13 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileJson, AlertCircle, CheckCircle, Database } from "lucide-react";
+import { Download, FileJson, AlertCircle, CheckCircle, Database, Lock, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export default function ExportData() {
   const [isExporting, setIsExporting] = useState(false);
+  const [lastExport, setLastExport] = useState<string | null>(() => localStorage.getItem("last_export_timestamp"));
   const utils = trpc.useUtils();
 
   const handleExportData = async () => {
@@ -67,6 +68,9 @@ export default function ExportData() {
       link.click();
       document.body.removeChild(link);
 
+      const now = new Date().toISOString();
+      localStorage.setItem("last_export_timestamp", now);
+      setLastExport(now);
       toast.success("Consolidated database backup downloaded ✓");
     } catch (error: any) {
       console.error("Export failure:", error);
@@ -82,6 +86,23 @@ export default function ExportData() {
       <div>
         <h1 className="text-3xl font-bold text-foreground number-display">Export Data</h1>
         <p className="text-muted-foreground mt-1">Backup your ledger logs and transactions for safety and audits</p>
+      </div>
+
+      {/* Security Ownership Banner */}
+      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/8 border border-emerald-200 dark:border-emerald-900/40 text-sm">
+        <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <div className="flex-1">
+          <p className="font-semibold text-emerald-800 dark:text-emerald-300">Your data, your ownership</p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+            All data is stored under your authenticated account. We never share or sell your financial records.
+            {lastExport && (
+              <span className="ml-2 text-emerald-600 dark:text-emerald-500">
+                Last exported: {new Date(lastExport).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+              </span>
+            )}
+          </p>
+        </div>
+        <Lock className="h-4 w-4 text-emerald-500 shrink-0" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

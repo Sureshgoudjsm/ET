@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { User, Sun, Moon, DollarSign, Database, Settings as SettingsIcon, BellRing, Save } from "lucide-react";
+import { User, Sun, Moon, DollarSign, Database, Settings as SettingsIcon, BellRing, Save, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -186,6 +186,34 @@ export default function Settings() {
                 <Save className="h-4 w-4" />
                 Save Settings
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Security & Privacy Card */}
+        <Card className="card-premium border-0 md:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Security &amp; Privacy
+            </CardTitle>
+            <CardDescription>Data ownership, storage, and privacy guarantees</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { icon: "🔒", title: "Your data only", desc: "No data is shared with third parties or advertisers" },
+                { icon: "🏦", title: "Account-scoped", desc: "All records are isolated to your Google account" },
+                { icon: "📤", title: "Export anytime", desc: "Full JSON export available from the Export Data page" },
+              ].map(item => (
+                <div key={item.title} className="p-3 bg-muted/30 rounded-xl border border-border/40 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{item.icon}</span>
+                    <span className="text-xs font-semibold text-foreground">{item.title}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

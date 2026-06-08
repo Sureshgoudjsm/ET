@@ -26,12 +26,13 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { 
   LayoutDashboard, LogOut, PanelLeft, Wallet, TrendingUp, Calendar, BarChart3, 
-  Users, Scale, CreditCard, Coins, Receipt, Gem, Settings, Bell, Download, ChevronRight 
+  Users, Scale, CreditCard, Coins, Receipt, Gem, Settings, Bell, Download, ChevronRight, Sparkles
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import AICopilot from "./AICopilot";
 
 const groups = [
   {
@@ -159,6 +160,7 @@ function DashboardLayoutContent({
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const [copilotOpen, setCopilotOpen] = useState(false);
 
   const allMenuItems = groups.flatMap(group => group.items);
   const activeMenuItem = allMenuItems.find(item => item.path === location);
@@ -452,6 +454,20 @@ function DashboardLayoutContent({
           </div>
         )}
       </SidebarInset>
+
+      {/* AI Copilot FAB */}
+      <button
+        id="ai-copilot-fab"
+        onClick={() => setCopilotOpen(true)}
+        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-200 flex items-center justify-center"
+        aria-label="Open AI Copilot"
+        title="AI Quick Entry"
+      >
+        <Sparkles className="h-5 w-5" />
+      </button>
+
+      {/* AI Copilot Panel */}
+      {copilotOpen && <AICopilot onClose={() => setCopilotOpen(false)} />}
     </>
   );
 }
