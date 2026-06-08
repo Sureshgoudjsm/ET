@@ -3,10 +3,12 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useState } from "react";
-import { TrendingUp, CheckCircle2, Clock, BarChart3 } from "lucide-react";
+import { TrendingUp, CheckCircle2, Clock, BarChart3, Download } from "lucide-react";
+import { toast } from "sonner";
 
 const MONTHS_FULL = [
   "January", "February", "March", "April", "May", "June",
@@ -84,6 +86,72 @@ export default function YearView() {
 
   // year range
   const yearRange = Array.from({ length: 8 }, (_, i) => currentDate.getFullYear() - 5 + i);
+
+  const handleExportCSV = () => {
+    if (!breakdown) {
+      toast.error("No breakdown data available to export");
+      return;
+    }
+
+    const headers = [
+      "Month",
+      "Paid Amount (Rupees)",
+      "Pending Amount (Rupees)",
+      "Total Amount (Rupees)"
+    ];
+
+    const rows = MONTHS_FULL.map((monthName, index) => {
+      const monthData = breakdown[index + 1];
+      const paid = ((monthData?.paid ?? 0) / 100).toFixed(2);
+      const pending = ((monthData?.pending ?? 0) / 100).toFixed(2);
+      const total = (((monthData?.paid ?? 0) + (monthData?.pending ?? 0)) / 100).toFixed(2);
+
+      return [
+        monthName,
+        paid,
+        pending,
+        total
+      ];
+    });
+
+    // Add annual total row at the end
+    const totalPaidRupees = (totalPaid / 100).toFixed(2);
+    const totalPendingRupees = (totalPending / 100).toFixed(2);
+    const totalTrackedRupees = (totalTracked / 100).toFixed(2);
+    
+    rows.push([
+      "Annual Total",
+      totalPaidRupees,
+      totalPendingRupees,
+      totalTrackedRupees
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row
+          .map((value) => {
+            const strValue = String(value).replace(/"/g, '""');
+            return strValue.includes(",") || strValue.includes("\n") || strValue.includes('"')
+              ? `"${strValue}"`
+              : strValue;
+          })
+          .join(",")
+      )
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `annual_breakdown_${year}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("CSV file exported successfully!");
+  };
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -201,8 +269,20 @@ export default function YearView() {
 
       {/* Monthly Details Table */}
       <Card className="card-premium border-0">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Monthly Breakdown Table</CardTitle>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-base">Monthly Breakdown Table</CardTitle>
+          </div>
+          <Button
+            id="export-year-csv-btn"
+            variant="outline"
+            size="sm"
+            className="h-9 bg-background border-border hover:bg-accent flex items-center gap-1.5 animate-fade-in"
+            onClick={handleExportCSV}
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
