@@ -10,13 +10,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 import { Plus, Edit2, Trash2, User, Users, TrendingUp, TrendingDown, Minus, AlertCircle } from "lucide-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 export default function Persons() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editPerson, setEditPerson] = useState<{ id: number; name: string; notes: string } | null>(null);
-  const [formData, setFormData] = useState({ name: "", notes: "" });
+  const [editPerson, setEditPerson] = useState<{ id: number; name: string; relationship: string; notes: string } | null>(null);
+  const [formData, setFormData] = useState({ name: "", relationship: "", notes: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
@@ -33,7 +35,7 @@ export default function Persons() {
     onSuccess: () => {
       toast.success("Person added successfully");
       setIsAddOpen(false);
-      setFormData({ name: "", notes: "" });
+      setFormData({ name: "", relationship: "", notes: "" });
       utils.person.list.invalidate();
       utils.balance.getAllBalances.invalidate();
     },
@@ -47,6 +49,7 @@ export default function Persons() {
       toast.success("Person updated successfully");
       setEditPerson(null);
       utils.person.list.invalidate();
+      utils.balance.getAllBalances.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Failed to update person");
@@ -71,7 +74,11 @@ export default function Persons() {
       toast.error("Name is required");
       return;
     }
-    createPerson.mutate({ name: formData.name.trim(), notes: formData.notes.trim() || undefined });
+    createPerson.mutate({
+      name: formData.name.trim(),
+      relationship: formData.relationship.trim() || undefined,
+      notes: formData.notes.trim() || undefined
+    });
   };
 
   const handleEdit = (e: React.FormEvent) => {
@@ -80,7 +87,12 @@ export default function Persons() {
       toast.error("Name is required");
       return;
     }
-    updatePerson.mutate({ id: editPerson.id, name: editPerson.name.trim(), notes: editPerson.notes.trim() || undefined });
+    updatePerson.mutate({
+      id: editPerson.id,
+      name: editPerson.name.trim(),
+      relationship: editPerson.relationship.trim() || undefined,
+      notes: editPerson.notes.trim() || undefined
+    });
   };
 
   const getBalance = (personId: number) => {
@@ -112,7 +124,7 @@ export default function Persons() {
             People
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage contacts involved in your EMIs and loans
+            Manage contacts involved in your EMIs, loans, and credit card debts
           </p>
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -131,17 +143,26 @@ export default function Persons() {
                 <Label htmlFor="add-name">Full Name *</Label>
                 <Input
                   id="add-name"
-                  placeholder="e.g., Rahul Kumar"
+                  placeholder="e.g., Sunny"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   autoFocus
                 />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="add-relationship">Relationship (Optional)</Label>
+                <Input
+                  id="add-relationship"
+                  placeholder="e.g., Brother, Cousin, Friend, Roommate"
+                  value={formData.relationship}
+                  onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="add-notes">Notes (Optional)</Label>
                 <Textarea
                   id="add-notes"
-                  placeholder="e.g., Brother-in-law, colleague..."
+                  placeholder="e.g., Brother-in-law, tracking flight and phone dues..."
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   rows={3}
@@ -177,6 +198,14 @@ export default function Persons() {
               />
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="edit-relationship">Relationship (Optional)</Label>
+              <Input
+                id="edit-relationship"
+                value={editPerson?.relationship || ""}
+                onChange={(e) => editPerson && setEditPerson({ ...editPerson, relationship: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="edit-notes">Notes (Optional)</Label>
               <Textarea
                 id="edit-notes"
@@ -207,7 +236,7 @@ export default function Persons() {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will delete the person and may affect related EMI and loan records. This action cannot be undone.
+            This will delete the person and may affect related EMI, loan, and credit card debt records. This action cannot be undone.
           </p>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)}>
@@ -237,7 +266,8 @@ export default function Persons() {
               <Card
                 key={person.id}
                 id={`person-card-${person.id}`}
-                className={`card-premium animate-slide-up stagger-${Math.min(idx + 1, 5)} border-0`}
+                className="card-premium animate-slide-up stagger-${Math.min(idx + 1, 5)} border-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all"
+                onClick={() => setLocation(`/persons/${person.id}`)}
               >
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between mb-4">
@@ -246,7 +276,14 @@ export default function Persons() {
                         <User className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground">{person.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-foreground">{person.name}</h3>
+                          {person.relationship && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                              {person.relationship}
+                            </span>
+                          )}
+                        </div>
                         {person.notes && (
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{person.notes}</p>
                         )}
@@ -257,7 +294,10 @@ export default function Persons() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 hover:bg-accent"
-                        onClick={() => setEditPerson({ id: person.id, name: person.name, notes: person.notes || "" })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditPerson({ id: person.id, name: person.name, relationship: person.relationship || "", notes: person.notes || "" });
+                        }}
                       >
                         <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                       </Button>
@@ -265,7 +305,10 @@ export default function Persons() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 hover:bg-destructive/10"
-                        onClick={() => setDeleteConfirm(person.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirm(person.id);
+                        }}
                       >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
@@ -336,5 +379,3 @@ export default function Persons() {
     </div>
   );
 }
-
-

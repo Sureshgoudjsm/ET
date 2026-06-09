@@ -43,6 +43,20 @@ vi.mock("./db", () => ({
   getAllPersonBalances: vi.fn().mockResolvedValue([]),
   getDashboardSummary: vi.fn().mockResolvedValue({ totalPaid: 0, totalPending: 0, totalOutstanding: 0 }),
   getMonthlyBreakdown: vi.fn().mockResolvedValue({}),
+  getPersonHistory: vi.fn().mockResolvedValue([]),
+  getCreditCardsByUserId: vi.fn().mockResolvedValue([]),
+  createCreditCard: vi.fn().mockResolvedValue({ success: true }),
+  getCreditCardById: vi.fn().mockResolvedValue({ id: 1, userId: 1, name: "Test Card", cardLimit: 100000, interestRate: 14, lateFee: 500, createdAt: new Date(), updatedAt: new Date() }),
+  updateCreditCard: vi.fn().mockResolvedValue({ success: true }),
+  deleteCreditCard: vi.fn().mockResolvedValue({ success: true }),
+  getCreditCardDebtsByUserId: vi.fn().mockResolvedValue([]),
+  createCreditCardDebt: vi.fn().mockResolvedValue({ success: true }),
+  getCreditCardDebtById: vi.fn().mockResolvedValue({ id: 1, userId: 1, creditCardId: 1, personId: 1, amount: 5000, interestRate: 14, lateFee: 500, date: new Date(), notes: "Test debt" }),
+  updateCreditCardDebt: vi.fn().mockResolvedValue({ success: true }),
+  deleteCreditCardDebt: vi.fn().mockResolvedValue({ success: true }),
+  getCcDebtTransactions: vi.fn().mockResolvedValue([]),
+  createCcDebtTransaction: vi.fn().mockResolvedValue({ success: true }),
+  applyCcStatementCharges: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 function createMockContext(): TrpcContext {
@@ -92,6 +106,20 @@ describe("Expense Tracker Routers", () => {
       const result = await caller.person.create({ name: "New Person", notes: "Test notes" });
 
       expect(result).toEqual({ success: true });
+    });
+
+    it("should create a person with a relationship", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.person.create({ name: "Cousin Sunny", relationship: "Family", notes: "Debt allocator tracker" });
+
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should get person history", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.person.getHistory({ personId: 1 });
+
+      expect(result).toBeInstanceOf(Array);
     });
 
     it("should update a person", async () => {
@@ -240,6 +268,92 @@ describe("Expense Tracker Routers", () => {
 
       expect(result).toEqual({ success: true });
       expect(ctx.res.clearCookie).toHaveBeenCalled();
+    });
+  });
+
+  describe("Credit Card Router", () => {
+    it("should list credit cards", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.list();
+      expect(result).toBeInstanceOf(Array);
+    });
+
+    it("should create a credit card", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.create({
+        name: "SBI Card",
+        cardLimit: 150000,
+        interestRate: 14.5,
+        lateFee: 500,
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should update a credit card", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.update({
+        id: 1,
+        name: "SBI Card Premium",
+        cardLimit: 200000,
+        interestRate: 13.5,
+        lateFee: 450,
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should delete a credit card", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.delete({ id: 1 });
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should list debts", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.listDebts();
+      expect(result).toBeInstanceOf(Array);
+    });
+
+    it("should create a debt allocation", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.createDebt({
+        creditCardId: 1,
+        personId: 1,
+        amount: 25000,
+        interestRate: 14.5,
+        lateFee: 500,
+        date: new Date(),
+        notes: "Shared purchases on card",
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should get CC ledger", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.getLedger({ debtId: 1 });
+      expect(result).toBeInstanceOf(Array);
+    });
+
+    it("should record a CC debt repayment", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.recordPayment({
+        debtId: 1,
+        amount: 5000,
+        date: new Date(),
+        notes: "Cash repayment",
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should apply statement charges", async () => {
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.creditCard.applyStatement({
+        creditCardId: 1,
+        totalStatementBalance: 100000,
+        interestCharged: 1500,
+        feesCharged: 500,
+        date: new Date(),
+      });
+      expect(result).toEqual({ success: true });
     });
   });
 });

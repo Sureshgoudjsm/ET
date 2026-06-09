@@ -10,6 +10,7 @@ import {
   payments,
   creditCards,
   creditCardDebts,
+  ccDebtTransactions,
   chittis,
   chittiContributions,
   generalExpenses,
@@ -71,10 +72,10 @@ function getNextId() {
 const memStore = {
   users: [] as any[],
   persons: [
-    { id: 1, userId: 1, name: "Sunny (Brother-in-law)", notes: "EMI and Credit Card Debt tracking", createdAt: new Date(), updatedAt: new Date() },
-    { id: 2, userId: 1, name: "Bilal", notes: "Personal loan tracking", createdAt: new Date(), updatedAt: new Date() },
-    { id: 3, userId: 1, name: "Mother", notes: "Gold Loan tracking", createdAt: new Date(), updatedAt: new Date() },
-    { id: 4, userId: 1, name: "Sister", notes: "Gold Loan tracking", createdAt: new Date(), updatedAt: new Date() }
+    { id: 1, userId: 1, name: "Sunny (Brother-in-law)", relationship: "Family", notes: "EMI and Credit Card Debt tracking", createdAt: new Date(), updatedAt: new Date() },
+    { id: 2, userId: 1, name: "Bilal", relationship: "Friend", notes: "Personal loan tracking", createdAt: new Date(), updatedAt: new Date() },
+    { id: 3, userId: 1, name: "Mother", relationship: "Family", notes: "Gold Loan tracking", createdAt: new Date(), updatedAt: new Date() },
+    { id: 4, userId: 1, name: "Sister", relationship: "Family", notes: "Gold Loan tracking", createdAt: new Date(), updatedAt: new Date() }
   ] as any[],
   emis: [
     { id: 101, userId: 1, personId: 1, amount: 2000000, startDate: new Date("2026-01-01"), endDate: null, description: "Monthly EMI Contribution", isActive: 1, createdAt: new Date(), updatedAt: new Date() }
@@ -88,8 +89,12 @@ const memStore = {
     { id: 301, userId: 1, name: "SBI Card Prime", cardLimit: 30000000, interestRate: 4200, lateFee: 50000, createdAt: new Date(), updatedAt: new Date() }
   ] as any[],
   creditCardDebts: [
-    { id: 401, userId: 1, creditCardId: 301, borrowerName: "Sunny", amount: 5000000, interestRate: 4200, lateFee: 50000, date: new Date("2026-01-15"), notes: "Mobile phone purchase", createdAt: new Date(), updatedAt: new Date() },
-    { id: 402, userId: 1, creditCardId: 301, borrowerName: "Sunny", amount: 2500000, interestRate: 4200, lateFee: 50000, date: new Date("2026-03-10"), notes: "Flight tickets", createdAt: new Date(), updatedAt: new Date() }
+    { id: 401, userId: 1, creditCardId: 301, personId: 1, borrowerName: "Sunny", amount: 5000000, interestRate: 4200, lateFee: 50000, date: new Date("2026-01-15"), notes: "Mobile phone purchase", createdAt: new Date(), updatedAt: new Date() },
+    { id: 402, userId: 1, creditCardId: 301, personId: 1, borrowerName: "Sunny", amount: 2500000, interestRate: 4200, lateFee: 50000, date: new Date("2026-03-10"), notes: "Flight tickets", createdAt: new Date(), updatedAt: new Date() }
+  ] as any[],
+  ccDebtTransactions: [
+    { id: 901, userId: 1, creditCardDebtId: 401, type: "principal", amount: 5000000, date: new Date("2026-01-15"), notes: "Mobile phone purchase", createdAt: new Date(), updatedAt: new Date() },
+    { id: 902, userId: 1, creditCardDebtId: 402, type: "principal", amount: 2500000, date: new Date("2026-03-10"), notes: "Flight tickets", createdAt: new Date(), updatedAt: new Date() }
   ] as any[],
   chittis: [
     { id: 501, userId: 1, name: "Sravani Chit Fund", totalAmount: 100000000, members: 20, monthlyContribution: 500000, friendName: "Ramesh", startDate: new Date("2026-01-01"), status: "active", createdAt: new Date(), updatedAt: new Date() }
@@ -103,10 +108,10 @@ const memStore = {
     { id: 606, userId: 1, chittiId: 501, amount: 500000, date: new Date("2026-05-10"), type: "contribution", notes: "May Contribution", createdAt: new Date(), updatedAt: new Date() }
   ] as any[],
   generalExpenses: [
-    { id: 701, userId: 1, amount: 450000, date: new Date("2026-05-02"), category: "Groceries", description: "Weekly market run", createdAt: new Date(), updatedAt: new Date() },
-    { id: 702, userId: 1, amount: 320000, date: new Date("2026-05-05"), category: "Food & Dining", description: "Dinner with family", createdAt: new Date(), updatedAt: new Date() },
-    { id: 703, userId: 1, amount: 280000, date: new Date("2026-05-10"), category: "Utilities", description: "Electricity bill", createdAt: new Date(), updatedAt: new Date() },
-    { id: 704, userId: 1, amount: 500000, date: new Date("2026-05-12"), category: "Transport", description: "Petrol fill up", createdAt: new Date(), updatedAt: new Date() }
+    { id: 701, userId: 1, amount: 450000, date: new Date("2026-05-02"), category: "Groceries", description: "Weekly market run", personId: null, isProxy: 0, createdAt: new Date(), updatedAt: new Date() },
+    { id: 702, userId: 1, amount: 320000, date: new Date("2026-05-05"), category: "Food & Dining", description: "Dinner with family", personId: null, isProxy: 0, createdAt: new Date(), updatedAt: new Date() },
+    { id: 703, userId: 1, amount: 280000, date: new Date("2026-05-10"), category: "Utilities", description: "Electricity bill", personId: null, isProxy: 0, createdAt: new Date(), updatedAt: new Date() },
+    { id: 704, userId: 1, amount: 500000, date: new Date("2026-05-12"), category: "Transport", description: "Petrol fill up", personId: null, isProxy: 0, createdAt: new Date(), updatedAt: new Date() }
   ] as any[],
   goldLoanInterest: [
     { id: 801, userId: 1, amount: 1200000, date: new Date("2026-04-15"), paidForPersonId: 3, notes: "April Interest payment for Mother", createdAt: new Date(), updatedAt: new Date() },
@@ -226,10 +231,10 @@ export async function getUserByOpenId(openId: string) {
 }
 
 // ============ Person Queries ============
-export async function createPerson(userId: number, name: string, notes?: string) {
+export async function createPerson(userId: number, name: string, relationship?: string, notes?: string) {
   const db = await getDb();
   if (!db) {
-    const newPerson = { id: getNextId(), userId, name, notes: notes || null, createdAt: new Date(), updatedAt: new Date() };
+    const newPerson = { id: getNextId(), userId, name, relationship: relationship || null, notes: notes || null, createdAt: new Date(), updatedAt: new Date() };
     memStore.persons.push(newPerson);
     return [newPerson];
   }
@@ -237,6 +242,7 @@ export async function createPerson(userId: number, name: string, notes?: string)
   return db.insert(persons).values({
     userId,
     name,
+    relationship,
     notes,
   });
 }
@@ -260,19 +266,20 @@ export async function getPersonById(id: number) {
   return result[0];
 }
 
-export async function updatePerson(id: number, name: string, notes?: string) {
+export async function updatePerson(id: number, name: string, relationship?: string, notes?: string) {
   const db = await getDb();
   if (!db) {
     const person = memStore.persons.find(p => p.id === id);
     if (person) {
       person.name = name;
+      person.relationship = relationship || null;
       person.notes = notes || null;
       person.updatedAt = new Date();
     }
     return person;
   }
   
-  return db.update(persons).set({ name, notes }).where(eq(persons.id, id));
+  return db.update(persons).set({ name, relationship, notes }).where(eq(persons.id, id));
 }
 
 export async function deletePerson(id: number) {
@@ -646,14 +653,67 @@ export async function deleteCreditCard(id: number) {
 }
 
 // ============ Credit Card Debt Queries ============
-export async function createCreditCardDebt(userId: number, creditCardId: number, borrowerName: string, amount: number, interestRate: number, lateFee: number, date: Date, notes?: string) {
+export async function createCreditCardDebt(
+  userId: number,
+  creditCardId: number,
+  personId: number | null,
+  amount: number,
+  interestRate: number,
+  lateFee: number,
+  date: Date,
+  notes?: string
+) {
   const db = await getDb();
+  let borrowerName = "Sunny";
+  
+  if (personId) {
+    const person = await getPersonById(personId);
+    if (person) {
+      borrowerName = person.name;
+    }
+  }
+
   if (!db) {
-    const newDebt = { id: getNextId(), userId, creditCardId, borrowerName, amount, interestRate, lateFee, date, notes: notes || null, createdAt: new Date(), updatedAt: new Date() };
+    const debtId = getNextId();
+    const newDebt = {
+      id: debtId,
+      userId,
+      creditCardId,
+      personId,
+      borrowerName,
+      amount: 0, // Will be updated by transaction
+      interestRate,
+      lateFee,
+      date,
+      notes: notes || null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
     memStore.creditCardDebts.push(newDebt);
+    
+    // Create initial principal transaction
+    await createCcDebtTransaction(userId, debtId, "principal", amount, date, notes);
+    
     return [newDebt];
   }
-  return db.insert(creditCardDebts).values({ userId, creditCardId, borrowerName, amount, interestRate, lateFee, date, notes });
+
+  await db.insert(creditCardDebts).values({
+    userId,
+    creditCardId,
+    personId,
+    borrowerName,
+    amount: 0, // Will be updated by transaction
+    interestRate,
+    lateFee,
+    date,
+    notes,
+  });
+
+  const allDebts = await db.select().from(creditCardDebts).where(eq(creditCardDebts.userId, userId));
+  const newDebt = allDebts[allDebts.length - 1];
+  if (newDebt) {
+    await createCcDebtTransaction(userId, newDebt.id, "principal", amount, date, notes);
+  }
 }
 
 export async function getCreditCardDebtsByUserId(userId: number) {
@@ -678,14 +738,46 @@ export async function updateCreditCardDebt(id: number, amount: number, date: Dat
   if (!db) {
     const debt = memStore.creditCardDebts.find(d => d.id === id);
     if (debt) {
-      debt.amount = amount;
       debt.date = date;
       debt.notes = notes || null;
       debt.updatedAt = new Date();
+      
+      const pTx = memStore.ccDebtTransactions.find(t => t.creditCardDebtId === id && t.type === "principal");
+      if (pTx) {
+        pTx.amount = amount;
+        pTx.date = date;
+      }
+      
+      const allTx = memStore.ccDebtTransactions.filter(t => t.creditCardDebtId === id);
+      let total = 0;
+      for (const t of allTx) {
+        if (t.type === "payment") total -= t.amount;
+        else total += t.amount;
+      }
+      debt.amount = total;
     }
     return debt;
   }
-  return db.update(creditCardDebts).set({ amount, date, notes }).where(eq(creditCardDebts.id, id));
+  
+  await db.update(creditCardDebts).set({ date, notes }).where(eq(creditCardDebts.id, id));
+  
+  const pTxs = await db.select().from(ccDebtTransactions).where(
+    and(
+      eq(ccDebtTransactions.creditCardDebtId, id),
+      eq(ccDebtTransactions.type, "principal")
+    )
+  );
+  if (pTxs[0]) {
+    await db.update(ccDebtTransactions).set({ amount, date }).where(eq(ccDebtTransactions.id, pTxs[0].id));
+  }
+  
+  const allTx = await db.select().from(ccDebtTransactions).where(eq(ccDebtTransactions.creditCardDebtId, id));
+  let total = 0;
+  for (const t of allTx) {
+    if (t.type === "payment") total -= t.amount;
+    else total += t.amount;
+  }
+  await db.update(creditCardDebts).set({ amount: total }).where(eq(creditCardDebts.id, id));
 }
 
 export async function deleteCreditCardDebt(id: number) {
@@ -693,9 +785,81 @@ export async function deleteCreditCardDebt(id: number) {
   if (!db) {
     const index = memStore.creditCardDebts.findIndex(d => d.id === id);
     if (index !== -1) memStore.creditCardDebts.splice(index, 1);
+    memStore.ccDebtTransactions = memStore.ccDebtTransactions.filter(t => t.creditCardDebtId !== id);
     return;
   }
+  await db.delete(ccDebtTransactions).where(eq(ccDebtTransactions.creditCardDebtId, id));
   return db.delete(creditCardDebts).where(eq(creditCardDebts.id, id));
+}
+
+// ============ Credit Card Debt Ledger Queries ============
+export async function getCcDebtTransactions(userId: number, debtId: number) {
+  const db = await getDb();
+  if (!db) {
+    return memStore.ccDebtTransactions.filter(t => t.userId === userId && t.creditCardDebtId === debtId);
+  }
+  return db.select().from(ccDebtTransactions).where(
+    and(
+      eq(ccDebtTransactions.userId, userId),
+      eq(ccDebtTransactions.creditCardDebtId, debtId)
+    )
+  );
+}
+
+export async function createCcDebtTransaction(
+  userId: number,
+  creditCardDebtId: number,
+  type: "principal" | "interest" | "fee" | "payment",
+  amount: number,
+  date: Date,
+  notes?: string
+) {
+  const db = await getDb();
+  if (!db) {
+    const newTx = {
+      id: getNextId(),
+      userId,
+      creditCardDebtId,
+      type,
+      amount,
+      date,
+      notes: notes || null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    memStore.ccDebtTransactions.push(newTx);
+    
+    // Update parent debt amount
+    const debt = memStore.creditCardDebts.find(d => d.id === creditCardDebtId);
+    if (debt) {
+      const allTx = memStore.ccDebtTransactions.filter(t => t.creditCardDebtId === creditCardDebtId);
+      let total = 0;
+      for (const t of allTx) {
+        if (t.type === "payment") total -= t.amount;
+        else total += t.amount;
+      }
+      debt.amount = total;
+    }
+    return [newTx];
+  }
+  
+  await db.insert(ccDebtTransactions).values({
+    userId,
+    creditCardDebtId,
+    type,
+    amount,
+    date,
+    notes,
+  });
+
+  // Update parent debt amount
+  const allTx = await db.select().from(ccDebtTransactions).where(eq(ccDebtTransactions.creditCardDebtId, creditCardDebtId));
+  let total = 0;
+  for (const t of allTx) {
+    if (t.type === "payment") total -= t.amount;
+    else total += t.amount;
+  }
+  await db.update(creditCardDebts).set({ amount: total }).where(eq(creditCardDebts.id, creditCardDebtId));
 }
 
 // ============ Chitti Queries ============
@@ -803,14 +967,16 @@ export async function deleteChittiContribution(id: number) {
 }
 
 // ============ General Expense Queries ============
-export async function createGeneralExpense(userId: number, amount: number, date: Date, category: string, description?: string) {
+export async function createGeneralExpense(userId: number, amount: number, date: Date, category: string, description?: string, personId?: number | null, isProxy?: number) {
   const db = await getDb();
+  const actualPersonId = personId ?? null;
+  const actualIsProxy = isProxy ?? 0;
   if (!db) {
-    const newExp = { id: getNextId(), userId, amount, date, category, description: description || null, createdAt: new Date(), updatedAt: new Date() };
+    const newExp = { id: getNextId(), userId, amount, date, category, description: description || null, personId: actualPersonId, isProxy: actualIsProxy, createdAt: new Date(), updatedAt: new Date() };
     memStore.generalExpenses.push(newExp);
     return [newExp];
   }
-  return db.insert(generalExpenses).values({ userId, amount, date, category, description });
+  return db.insert(generalExpenses).values({ userId, amount, date, category, description, personId: actualPersonId, isProxy: actualIsProxy });
 }
 
 export async function getGeneralExpensesByUserId(userId: number) {
@@ -830,8 +996,10 @@ export async function getGeneralExpenseById(id: number) {
   return result[0];
 }
 
-export async function updateGeneralExpense(id: number, amount: number, date: Date, category: string, description?: string) {
+export async function updateGeneralExpense(id: number, amount: number, date: Date, category: string, description?: string, personId?: number | null, isProxy?: number) {
   const db = await getDb();
+  const actualPersonId = personId ?? null;
+  const actualIsProxy = isProxy ?? 0;
   if (!db) {
     const exp = memStore.generalExpenses.find(e => e.id === id);
     if (exp) {
@@ -839,11 +1007,13 @@ export async function updateGeneralExpense(id: number, amount: number, date: Dat
       exp.date = date;
       exp.category = category;
       exp.description = description || null;
+      exp.personId = actualPersonId;
+      exp.isProxy = actualIsProxy;
       exp.updatedAt = new Date();
     }
     return exp;
   }
-  return db.update(generalExpenses).set({ amount, date, category, description }).where(eq(generalExpenses.id, id));
+  return db.update(generalExpenses).set({ amount, date, category, description, personId: actualPersonId, isProxy: actualIsProxy }).where(eq(generalExpenses.id, id));
 }
 
 export async function deleteGeneralExpense(id: number) {
@@ -936,6 +1106,8 @@ export async function getPersonBalance(userId: number, personId: number) {
     const allPayments = memStore.payments.filter(p => p.userId === userId && p.personId === personId);
     const allLoans = memStore.loans.filter(l => l.userId === userId && l.personId === personId);
     const allGold = memStore.goldLoanInterest.filter(g => g.userId === userId && g.paidForPersonId === personId);
+    const allProxyExpenses = memStore.generalExpenses.filter(e => e.userId === userId && e.personId === personId && e.isProxy === 1);
+    const allCcDebts = memStore.creditCardDebts.filter(d => d.userId === userId && d.personId === personId);
 
     let totalOwedToMe = 0;
     let totalOwedByMe = 0;
@@ -966,6 +1138,16 @@ export async function getPersonBalance(userId: number, personId: number) {
       totalOwedToMe += gold.amount;
     }
 
+    // Proxy expenses paid by user
+    for (const exp of allProxyExpenses) {
+      totalOwedToMe += exp.amount;
+    }
+
+    // Credit Card Debt outstanding
+    for (const debt of allCcDebts) {
+      totalOwedToMe += debt.amount;
+    }
+
     const netBalance = totalOwedToMe - totalOwedByMe;
 
     return {
@@ -987,6 +1169,21 @@ export async function getPersonBalance(userId: number, personId: number) {
   // Get all gold loan interest payments for this person
   const allGold = await db.select().from(goldLoanInterest)
     .where(and(eq(goldLoanInterest.userId, userId), eq(goldLoanInterest.paidForPersonId, personId)));
+
+  // Get all proxy general expenses paid for this person
+  const allProxyExpenses = await db.select().from(generalExpenses)
+    .where(and(
+      eq(generalExpenses.userId, userId),
+      eq(generalExpenses.personId, personId),
+      eq(generalExpenses.isProxy, 1)
+    ));
+
+  // Get all Credit Card Debts for this person
+  const allCcDebts = await db.select().from(creditCardDebts)
+    .where(and(
+      eq(creditCardDebts.userId, userId),
+      eq(creditCardDebts.personId, personId)
+    ));
 
   let totalOwedToMe = 0;
   let totalOwedByMe = 0;
@@ -1016,6 +1213,16 @@ export async function getPersonBalance(userId: number, personId: number) {
     totalOwedToMe += gold.amount;
   }
 
+  // Add Proxy General Expenses paid on behalf of person
+  for (const exp of allProxyExpenses) {
+    totalOwedToMe += exp.amount;
+  }
+
+  // Add CC debts outstanding
+  for (const debt of allCcDebts) {
+    totalOwedToMe += debt.amount;
+  }
+
   const netBalance = totalOwedToMe - totalOwedByMe;
 
   return {
@@ -1024,6 +1231,227 @@ export async function getPersonBalance(userId: number, personId: number) {
     totalOwedByMe,
     netBalance,
   };
+}
+
+// ============ Proportional CC Statement Calculation ============
+export async function applyCcStatementCharges(
+  userId: number,
+  creditCardId: number,
+  totalStatementBalance: number,
+  interestCharged: number,
+  feesCharged: number,
+  date: Date
+) {
+  const db = await getDb();
+  if (totalStatementBalance <= 0) return;
+
+  if (!db) {
+    // memStore branch
+    const cardDebts = memStore.creditCardDebts.filter(
+      d => d.userId === userId && d.creditCardId === creditCardId && d.amount > 0
+    );
+    for (const debt of cardDebts) {
+      const ratio = debt.amount / totalStatementBalance;
+      const propInterest = Math.round(interestCharged * ratio);
+      const propFees = Math.round(feesCharged * ratio);
+
+      if (propInterest > 0) {
+        await createCcDebtTransaction(userId, debt.id, "interest", propInterest, date, "Proportional statement interest");
+      }
+      if (propFees > 0) {
+        await createCcDebtTransaction(userId, debt.id, "fee", propFees, date, "Proportional statement fees");
+      }
+    }
+    return;
+  }
+
+  // DB branch
+  const cardDebts = await db.select().from(creditCardDebts).where(
+    and(
+      eq(creditCardDebts.userId, userId),
+      eq(creditCardDebts.creditCardId, creditCardId),
+      gte(creditCardDebts.amount, 1) // outstanding balance > 0
+    )
+  );
+
+  for (const debt of cardDebts) {
+    const ratio = debt.amount / totalStatementBalance;
+    const propInterest = Math.round(interestCharged * ratio);
+    const propFees = Math.round(feesCharged * ratio);
+
+    if (propInterest > 0) {
+      await createCcDebtTransaction(userId, debt.id, "interest", propInterest, date, "Proportional statement interest");
+    }
+    if (propFees > 0) {
+      await createCcDebtTransaction(userId, debt.id, "fee", propFees, date, "Proportional statement fees");
+    }
+  }
+}
+
+// ============ Person Audit History / Timeline ============
+export async function getPersonHistory(userId: number, personId: number) {
+  const db = await getDb();
+  
+  let pPayments: any[] = [];
+  let pLoans: any[] = [];
+  let pGold: any[] = [];
+  let pProxyExpenses: any[] = [];
+  let pCcTransactions: any[] = [];
+
+  if (!db) {
+    pPayments = memStore.payments.filter(p => p.userId === userId && p.personId === personId && p.status === "paid");
+    pLoans = memStore.loans.filter(l => l.userId === userId && l.personId === personId);
+    pGold = memStore.goldLoanInterest.filter(g => g.userId === userId && g.paidForPersonId === personId);
+    pProxyExpenses = memStore.generalExpenses.filter(e => e.userId === userId && e.personId === personId && e.isProxy === 1);
+    
+    // Find CC Debt allocations for this person
+    const debts = memStore.creditCardDebts.filter(d => d.userId === userId && d.personId === personId);
+    for (const debt of debts) {
+      const txs = memStore.ccDebtTransactions.filter(t => t.creditCardDebtId === debt.id);
+      const card = memStore.creditCards.find(c => c.id === debt.creditCardId);
+      for (const tx of txs) {
+        pCcTransactions.push({
+          ...tx,
+          cardName: card?.name || "Credit Card",
+          debtNotes: debt.notes
+        });
+      }
+    }
+  } else {
+    pPayments = await db.select().from(payments).where(
+      and(
+        eq(payments.userId, userId),
+        eq(payments.personId, personId),
+        eq(payments.status, "paid")
+      )
+    );
+    pLoans = await db.select().from(loans).where(
+      and(
+        eq(loans.userId, userId),
+        eq(loans.personId, personId)
+      )
+    );
+    pGold = await db.select().from(goldLoanInterest).where(
+      and(
+        eq(goldLoanInterest.userId, userId),
+        eq(goldLoanInterest.paidForPersonId, personId)
+      )
+    );
+    pProxyExpenses = await db.select().from(generalExpenses).where(
+      and(
+        eq(generalExpenses.userId, userId),
+        eq(generalExpenses.personId, personId),
+        eq(generalExpenses.isProxy, 1)
+      )
+    );
+
+    // CC debts
+    const debts = await db.select().from(creditCardDebts).where(
+      and(
+        eq(creditCardDebts.userId, userId),
+        eq(creditCardDebts.personId, personId)
+      )
+    );
+    for (const debt of debts) {
+      const txs = await db.select().from(ccDebtTransactions).where(eq(ccDebtTransactions.creditCardDebtId, debt.id));
+      const cardResult = await db.select().from(creditCards).where(eq(creditCards.id, debt.creditCardId)).limit(1);
+      const card = cardResult[0];
+      for (const tx of txs) {
+        pCcTransactions.push({
+          ...tx,
+          cardName: card?.name || "Credit Card",
+          debtNotes: debt.notes
+        });
+      }
+    }
+  }
+
+  // Format all entries into a unified timeline
+  const timeline: any[] = [];
+
+  // 1. EMI Payments
+  for (const p of pPayments) {
+    timeline.push({
+      id: `payment-${p.id}`,
+      type: p.paidBy === "user" ? "proxy_payment" : "repayment",
+      amount: p.amount,
+      date: p.paidDate || p.dueDate,
+      description: p.paidBy === "user" ? `Paid EMI on behalf of borrower` : `Borrower repaid EMI`,
+      notes: p.notes,
+      reference: `EMI Payment`
+    });
+  }
+
+  // 2. Loans
+  for (const l of pLoans) {
+    timeline.push({
+      id: `loan-${l.id}`,
+      type: l.type === "given" ? "loan_given" : "loan_received",
+      amount: l.amount,
+      date: l.date,
+      description: l.type === "given" ? `Lent money` : `Borrowed money`,
+      notes: l.notes,
+      reference: `Informal Loan`
+    });
+  }
+
+  // 3. Gold Loan Interest
+  for (const g of pGold) {
+    timeline.push({
+      id: `gold-${g.id}`,
+      type: "proxy_payment",
+      amount: g.amount,
+      date: g.date,
+      description: `Paid Gold Loan Interest on behalf of borrower`,
+      notes: g.notes,
+      reference: `Gold Loan Interest`
+    });
+  }
+
+  // 4. General Expenses (Proxy)
+  for (const e of pProxyExpenses) {
+    timeline.push({
+      id: `expense-${e.id}`,
+      type: "proxy_payment",
+      amount: e.amount,
+      date: e.date,
+      description: `Proxy expense: ${e.category}`,
+      notes: e.description,
+      reference: `General Expense`
+    });
+  }
+
+  // 5. Credit Card Transactions
+  for (const t of pCcTransactions) {
+    let type = "cc_principal";
+    let desc = "Credit Card Charge";
+    if (t.type === "interest") {
+      type = "cc_interest";
+      desc = `Interest accrued on CC: ${t.cardName}`;
+    } else if (t.type === "fee") {
+      type = "cc_fee";
+      desc = `Fee accrued on CC: ${t.cardName}`;
+    } else if (t.type === "payment") {
+      type = "repayment";
+      desc = `Payment towards CC: ${t.cardName}`;
+    } else {
+      desc = `Credit Card initial charge: ${t.cardName}`;
+    }
+
+    timeline.push({
+      id: `cc-tx-${t.id}`,
+      type,
+      amount: t.amount,
+      date: t.date,
+      description: desc,
+      notes: t.notes || t.debtNotes,
+      reference: t.cardName
+    });
+  }
+
+  // Sort by date descending
+  timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return timeline;
 }
 
 export async function getAllPersonBalances(userId: number) {

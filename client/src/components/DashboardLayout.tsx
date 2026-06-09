@@ -26,13 +26,14 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { 
   LayoutDashboard, LogOut, PanelLeft, Wallet, TrendingUp, Calendar, BarChart3, 
-  Users, Scale, CreditCard, Coins, Receipt, Gem, Settings, Bell, Download, ChevronRight, Sparkles
+  Users, User, Scale, CreditCard, Coins, Receipt, Gem, Settings, Bell, Download, ChevronRight, Sparkles
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import AICopilot from "./AICopilot";
+import { trpc } from "@/lib/trpc";
 
 const groups = [
   {
@@ -68,8 +69,8 @@ const groups = [
   },
   {
     id: "settings",
-    label: "People & Settings",
-    icon: Users,
+    label: "Settings",
+    icon: Settings,
     items: [
       { label: "Manage People", path: "/persons", icon: Users },
       { label: "Settings", path: "/settings", icon: Settings },
@@ -162,6 +163,8 @@ function DashboardLayoutContent({
   const isMobile = useIsMobile();
   const [copilotOpen, setCopilotOpen] = useState(false);
 
+  const { data: persons } = trpc.person.list.useQuery(undefined, { enabled: !!user });
+
   const allMenuItems = groups.flatMap(group => group.items);
   const activeMenuItem = allMenuItems.find(item => item.path === location);
   const activeGroup = groups.find(group => group.items.some(item => item.path === location)) || groups[0];
@@ -171,6 +174,7 @@ function DashboardLayoutContent({
     debt: true,
     savings: true,
     settings: true,
+    people: true,
   });
 
   useEffect(() => {
@@ -261,7 +265,163 @@ function DashboardLayoutContent({
             </SidebarHeader>
 
             <SidebarContent className="gap-0 py-2">
-              {groups.map((group) => {
+              {groups.slice(0, 3).map((group) => {
+                const isGroupActive = group.items.some((item) => item.path === location);
+                const isOpen = isCollapsed ? true : openGroups[group.id];
+
+                return (
+                  <Collapsible
+                    key={group.id}
+                    open={isOpen}
+                    onOpenChange={(openState) => {
+                      if (!isCollapsed) {
+                        setOpenGroups((prev) => ({ ...prev, [group.id]: openState }));
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    <SidebarGroup className="py-1">
+                      {!isCollapsed && (
+                        <SidebarGroupLabel asChild>
+                          <CollapsibleTrigger asChild>
+                            <button
+                              className={`flex w-full items-center justify-between text-xs font-semibold px-2 py-1.5 rounded-lg transition-all focus:outline-none ${
+                                isGroupActive 
+                                  ? "text-primary hover:bg-primary/5" 
+                                  : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <group.icon className="h-3.5 w-3.5 shrink-0" />
+                                <span>{group.label}</span>
+                              </div>
+                              <ChevronRight className={`ml-auto h-3 w-3 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
+                            </button>
+                          </CollapsibleTrigger>
+                        </SidebarGroupLabel>
+                      )}
+                      
+                      <CollapsibleContent className="transition-all duration-200">
+                        <SidebarGroupContent>
+                          <SidebarMenu className={isCollapsed ? "" : "pl-2"}>
+                            {group.items.map((item) => {
+                              const isActive = location === item.path;
+                              return (
+                                <SidebarMenuItem key={item.path}>
+                                  <SidebarMenuButton
+                                    isActive={isActive}
+                                    onClick={() => setLocation(item.path)}
+                                    tooltip={item.label}
+                                    className={`h-9 transition-all duration-150 font-normal rounded-lg ${
+                                      isActive
+                                        ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                                        : "hover:bg-sidebar-accent text-sidebar-foreground"
+                                    }`}
+                                  >
+                                    <item.icon
+                                      className={`h-4 w-4 shrink-0 ${isActive ? "text-primary-foreground" : "text-muted-foreground"}`}
+                                    />
+                                    <span className="font-medium text-sm">{item.label}</span>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              );
+                            })}
+                          </SidebarMenu>
+                        </SidebarGroupContent>
+                      </CollapsibleContent>
+                    </SidebarGroup>
+                  </Collapsible>
+                );
+              })}
+
+              {/* People Section */}
+              <Collapsible
+                key="people"
+                open={isCollapsed ? true : openGroups.people}
+                onOpenChange={(openState) => {
+                  if (!isCollapsed) {
+                    setOpenGroups((prev) => ({ ...prev, people: openState }));
+                  }
+                }}
+                className="w-full"
+              >
+                <SidebarGroup className="py-1">
+                  {!isCollapsed && (
+                    <SidebarGroupLabel asChild>
+                      <CollapsibleTrigger asChild>
+                        <button
+                          className={`flex w-full items-center justify-between text-xs font-semibold px-2 py-1.5 rounded-lg transition-all focus:outline-none ${
+                            location.startsWith("/persons/") && location !== "/persons"
+                              ? "text-primary hover:bg-primary/5" 
+                              : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Users className="h-3.5 w-3.5 shrink-0" />
+                            <span>People</span>
+                          </div>
+                          <ChevronRight className={`ml-auto h-3 w-3 transition-transform duration-200 ${openGroups.people ? "rotate-90" : ""}`} />
+                        </button>
+                      </CollapsibleTrigger>
+                    </SidebarGroupLabel>
+                  )}
+                  
+                  <CollapsibleContent className="transition-all duration-200">
+                    <SidebarGroupContent>
+                      <SidebarMenu className={isCollapsed ? "" : "pl-2"}>
+                        {persons && persons.length > 0 ? (
+                          <>
+                            {persons.slice(0, 6).map((person) => {
+                              const personPath = `/persons/${person.id}`;
+                              const isActive = location === personPath;
+                              return (
+                                <SidebarMenuItem key={person.id}>
+                                  <SidebarMenuButton
+                                    isActive={isActive}
+                                    onClick={() => setLocation(personPath)}
+                                    tooltip={person.name}
+                                    className={`h-9 transition-all duration-150 font-normal rounded-lg ${
+                                      isActive
+                                        ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                                        : "hover:bg-sidebar-accent text-sidebar-foreground"
+                                    }`}
+                                  >
+                                    <User
+                                      className={`h-4 w-4 shrink-0 ${isActive ? "text-primary-foreground" : "text-muted-foreground"}`}
+                                    />
+                                    <span className="font-medium text-sm truncate">{person.name}</span>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              );
+                            })}
+                            {persons.length > 6 && (
+                              <SidebarMenuItem key="manage-more">
+                                <SidebarMenuButton
+                                  isActive={location === "/persons"}
+                                  onClick={() => setLocation("/persons")}
+                                  tooltip="Manage All People"
+                                  className="h-9 transition-all duration-150 font-normal rounded-lg hover:bg-sidebar-accent text-muted-foreground hover:text-foreground italic"
+                                >
+                                  <Users className="h-4 w-4 shrink-0" />
+                                  <span className="text-xs">+{persons.length - 6} more contacts</span>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            )}
+                          </>
+                        ) : (
+                          !isCollapsed && (
+                            <div className="text-xs text-muted-foreground px-2 py-1.5 italic">
+                              No contacts yet
+                            </div>
+                          )
+                        )}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
+
+              {groups.slice(3).map((group) => {
                 const isGroupActive = group.items.some((item) => item.path === location);
                 const isOpen = isCollapsed ? true : openGroups[group.id];
 

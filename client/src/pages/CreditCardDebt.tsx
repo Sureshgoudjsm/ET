@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus, Trash2, CreditCard, TrendingUp, AlertCircle, Printer, Calendar, User, FileText, BarChart3, Receipt, Scale } from "lucide-react";
+import { Plus, Trash2, CreditCard, TrendingUp, AlertCircle, Printer, Calendar, User, FileText, BarChart3, Receipt, Scale, Landmark, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -24,10 +24,25 @@ type CardFormData = {
 
 type DebtFormData = {
   creditCardId: string;
-  borrowerName: string;
+  personId: string;
   amount: string;
   interestRate: string;
   lateFee: string;
+  date: string;
+  notes: string;
+};
+
+type StatementFormData = {
+  creditCardId: string;
+  totalStatementBalance: string;
+  interestCharged: string;
+  feesCharged: string;
+  date: string;
+};
+
+type CCRepaymentFormData = {
+  debtId: string;
+  amount: string;
   date: string;
   notes: string;
 };
@@ -41,10 +56,25 @@ const emptyCardForm: CardFormData = {
 
 const emptyDebtForm: DebtFormData = {
   creditCardId: "",
-  borrowerName: "Sunny",
+  personId: "",
   amount: "",
   interestRate: "42",
   lateFee: "500",
+  date: new Date().toISOString().split("T")[0],
+  notes: "",
+};
+
+const emptyStatementForm: StatementFormData = {
+  creditCardId: "",
+  totalStatementBalance: "",
+  interestCharged: "0",
+  feesCharged: "0",
+  date: new Date().toISOString().split("T")[0],
+};
+
+const emptyRepaymentForm: CCRepaymentFormData = {
+  debtId: "",
+  amount: "",
   date: new Date().toISOString().split("T")[0],
   notes: "",
 };
@@ -54,8 +84,13 @@ export default function CreditCardDebt() {
   const [activeTab, setActiveTab] = useState("cards");
   const [isCardOpen, setIsCardOpen] = useState(false);
   const [isDebtOpen, setIsDebtOpen] = useState(false);
+  const [isStatementOpen, setIsStatementOpen] = useState(false);
+  const [isRepaymentOpen, setIsRepaymentOpen] = useState(false);
+
   const [cardForm, setCardForm] = useState<CardFormData>(emptyCardForm);
   const [debtForm, setDebtForm] = useState<DebtFormData>(emptyDebtForm);
+  const [statementForm, setStatementForm] = useState<StatementFormData>(emptyStatementForm);
+  const [repaymentForm, setRepaymentForm] = useState<CCRepaymentFormData>(emptyRepaymentForm);
   const [selectedDebtId, setSelectedDebtId] = useState<number | null>(null);
   
   // Dialog state for confirm delete
@@ -74,6 +109,17 @@ export default function CreditCardDebt() {
   const { data: debts, isLoading: debtsLoading } = trpc.creditCard.listDebts.useQuery(undefined, {
     enabled: !!user,
   });
+
+  const { data: persons } = trpc.person.list.useQuery(undefined, {
+    enabled: !!user,
+  });
+
+  // Fetch ledger for selected debt
+  const currentSelectedDebtId = selectedDebtId ?? debts?.[0]?.id ?? 0;
+  const { data: ledger, isLoading: ledgerLoading } = trpc.creditCard.getLedger.useQuery(
+    { debtId: currentSelectedDebtId },
+    { enabled: !!user && currentSelectedDebtId > 0 }
+  );
 
   const createCard = trpc.creditCard.create.useMutation({
     onSuccess: () => {
@@ -94,6 +140,7 @@ export default function CreditCardDebt() {
       utils.creditCard.list.invalidate();
       utils.creditCard.listDebts.invalidate();
       utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Failed to delete credit card");
@@ -102,14 +149,15 @@ export default function CreditCardDebt() {
 
   const createDebt = trpc.creditCard.createDebt.useMutation({
     onSuccess: () => {
-      toast.success("Debt record added successfully");
+      toast.success("Debt allocation added successfully");
       setIsDebtOpen(false);
       setDebtForm(emptyDebtForm);
       utils.creditCard.listDebts.invalidate();
       utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to log debt record");
+      toast.error(error.message || "Failed to log debt allocation");
     },
   });
 
@@ -119,9 +167,44 @@ export default function CreditCardDebt() {
       setDeleteDebtId(null);
       utils.creditCard.listDebts.invalidate();
       utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Failed to delete debt record");
+    },
+  });
+
+  const applyStatement = trpc.creditCard.applyStatement.useMutation({
+    onSuccess: () => {
+      toast.success("Statement charges applied and distributed proportionally!");
+      setIsStatementOpen(false);
+      setStatementForm(emptyStatementForm);
+      utils.creditCard.listDebts.invalidate();
+      if (currentSelectedDebtId > 0) {
+        utils.creditCard.getLedger.invalidate({ debtId: currentSelectedDebtId });
+      }
+      utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to distribute statement charges");
+    },
+  });
+
+  const recordCCRepayment = trpc.creditCard.recordPayment.useMutation({
+    onSuccess: () => {
+      toast.success("Repayment recorded successfully against CC debt allocation!");
+      setIsRepaymentOpen(false);
+      setRepaymentForm(emptyRepaymentForm);
+      utils.creditCard.listDebts.invalidate();
+      if (currentSelectedDebtId > 0) {
+        utils.creditCard.getLedger.invalidate({ debtId: currentSelectedDebtId });
+      }
+      utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to record CC repayment");
     },
   });
 
@@ -141,18 +224,51 @@ export default function CreditCardDebt() {
 
   const handleDebtSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!debtForm.creditCardId || !debtForm.borrowerName || !debtForm.amount || !debtForm.interestRate || !debtForm.lateFee || !debtForm.date) {
+    if (!debtForm.creditCardId || !debtForm.personId || !debtForm.amount || !debtForm.interestRate || !debtForm.lateFee || !debtForm.date) {
       toast.error("Please fill in all required fields");
       return;
     }
+    
+    const person = persons?.find(p => p.id.toString() === debtForm.personId);
+    
     createDebt.mutate({
       creditCardId: parseInt(debtForm.creditCardId),
-      borrowerName: debtForm.borrowerName,
+      personId: parseInt(debtForm.personId),
+      borrowerName: person?.name || "Borrower",
       amount: Math.round(parseFloat(debtForm.amount) * 100),
       interestRate: Math.round(parseFloat(debtForm.interestRate) * 100),
       lateFee: Math.round(parseFloat(debtForm.lateFee) * 100),
       date: new Date(debtForm.date),
       notes: debtForm.notes || undefined,
+    });
+  };
+
+  const handleStatementSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statementForm.creditCardId || !statementForm.totalStatementBalance || !statementForm.date) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    applyStatement.mutate({
+      creditCardId: parseInt(statementForm.creditCardId),
+      totalStatementBalance: Math.round(parseFloat(statementForm.totalStatementBalance) * 100),
+      interestCharged: Math.round(parseFloat(statementForm.interestCharged || "0") * 100),
+      feesCharged: Math.round(parseFloat(statementForm.feesCharged || "0") * 100),
+      date: new Date(statementForm.date),
+    });
+  };
+
+  const handleRepaymentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!repaymentForm.debtId || !repaymentForm.amount || !repaymentForm.date) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    recordCCRepayment.mutate({
+      debtId: parseInt(repaymentForm.debtId),
+      amount: Math.round(parseFloat(repaymentForm.amount) * 100),
+      date: new Date(repaymentForm.date),
+      notes: repaymentForm.notes || undefined,
     });
   };
 
@@ -170,6 +286,20 @@ export default function CreditCardDebt() {
     }
   };
 
+  const handleCardSelectForStatement = (cardId: string) => {
+    setStatementForm({ ...statementForm, creditCardId: cardId });
+  };
+
+  const openRepaymentModalForDebt = (debtId: number) => {
+    setRepaymentForm({
+      debtId: debtId.toString(),
+      amount: "",
+      date: new Date().toISOString().split("T")[0],
+      notes: "",
+    });
+    setIsRepaymentOpen(true);
+  };
+
   if (cardsLoading || debtsLoading) {
     return (
       <div className="space-y-6">
@@ -183,11 +313,11 @@ export default function CreditCardDebt() {
     );
   }
 
-  // Calculate stats
-  const totalSunnyDebt = debts?.reduce((sum, d) => sum + d.amount, 0) || 0;
+  // Calculate total outstanding cc debt
+  const totalCcDebt = debts?.reduce((sum, d) => sum + d.amount, 0) || 0;
   
   // Calculate Compounding projection data for selected or first debt
-  const selectedDebt = debts?.find(d => d.id === (selectedDebtId ?? debts[0]?.id));
+  const selectedDebt = debts?.find(d => d.id === currentSelectedDebtId);
   const generateCompoundingData = (debt: any) => {
     if (!debt) return [];
     const monthlyRate = (debt.interestRate / 10000) / 12; // basis points to monthly decimal
@@ -228,6 +358,7 @@ export default function CreditCardDebt() {
 
   const printRecord = debts?.find(d => d.id === printDebtId);
   const printCard = cards?.find(c => c.id === printRecord?.creditCardId);
+  const printPerson = persons?.find(p => p.id === printRecord?.personId);
 
   return (
     <div className="space-y-6 animate-slide-up print:p-0 print:m-0">
@@ -249,9 +380,9 @@ export default function CreditCardDebt() {
           <div className="grid grid-cols-2 gap-8 text-sm">
             <div className="space-y-2">
               <h3 className="font-bold text-gray-700 border-b pb-1">BORROWER DETAILS</h3>
-              <p><span className="font-semibold text-gray-500">Name:</span> {printRecord.borrowerName}</p>
-              <p><span className="font-semibold text-gray-500">Debt Target:</span> Sunny's Credit Card Debt</p>
-              <p><span className="font-semibold text-gray-500">Lender:</span> Personal Account / Brother-in-law Tracker</p>
+              <p><span className="font-semibold text-gray-500">Name:</span> {printPerson?.name || printRecord.borrowerName}</p>
+              {printPerson?.relationship && <p><span className="font-semibold text-gray-500">Relationship:</span> {printPerson.relationship}</p>}
+              <p><span className="font-semibold text-gray-500">Lender:</span> Personal Account / Expense Tracker</p>
             </div>
             <div className="space-y-2">
               <h3 className="font-bold text-gray-700 border-b pb-1">CARD DETAILS</h3>
@@ -268,7 +399,7 @@ export default function CreditCardDebt() {
             </div>
             <div className="p-4 grid grid-cols-3 text-center divide-x">
               <div>
-                <p className="text-xs text-gray-500">Principal Borrowed</p>
+                <p className="text-xs text-gray-500">Net Outstanding Debt</p>
                 <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(printRecord.amount)}</p>
               </div>
               <div>
@@ -276,8 +407,8 @@ export default function CreditCardDebt() {
                 <p className="text-xl font-bold text-gray-900 mt-1">{printRecord.interestRate / 100}%</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Current Repayment Status</p>
-                <p className="text-xl font-bold text-red-600 mt-1">PENDING</p>
+                <p className="text-xs text-gray-500">Repayment Status</p>
+                <p className="text-xl font-bold text-red-600 mt-1">{printRecord.amount > 0 ? "PENDING" : "SETTLED"}</p>
               </div>
             </div>
           </div>
@@ -333,13 +464,22 @@ export default function CreditCardDebt() {
           <div>
             <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
               <CreditCard className="h-8 w-8 text-rose-500" />
-              Sunny's Credit Card Debt
+              Credit Card Debt Allocator
             </h1>
             <p className="text-muted-foreground mt-1">
-              Compounding debt balances on specific credit cards taken by Sunny, with projection charts and printable receipts
+              Assign CC balance to specific people, run auto-inflation statement logic, and track payments in a ledger
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Run Proportional Interest Statement Button */}
+            <Button 
+              variant="outline" 
+              className="gap-2 border-indigo-500/20 hover:bg-indigo-500/5 text-indigo-600 dark:text-indigo-400"
+              onClick={() => setIsStatementOpen(true)}
+            >
+              <Landmark className="h-4 w-4" /> Apply Statement
+            </Button>
+
             <Dialog open={isCardOpen} onOpenChange={setIsCardOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2 border-primary/20 hover:bg-accent/40">
@@ -402,19 +542,19 @@ export default function CreditCardDebt() {
             <Dialog open={isDebtOpen} onOpenChange={setIsDebtOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 shadow-md text-white">
-                  <Plus className="h-4 w-4" /> Log Sunny's Borrowing
+                  <Plus className="h-4 w-4" /> Assign Balance
                 </Button>
               </DialogTrigger>
               <DialogContent className="animate-scale-in">
                 <DialogHeader>
-                  <DialogTitle>Log Sunny's Borrowing</DialogTitle>
+                  <DialogTitle>Assign CC Balance to Person</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleDebtSubmit} className="space-y-4">
                   <div className="space-y-1">
                     <Label>Select Credit Card *</Label>
                     {cards && cards.length === 0 ? (
                       <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 p-3 text-sm text-amber-700 dark:text-amber-300">
-                        Please add a Credit Card first before logging borrowings.
+                        Please add a Credit Card first before assigning balances.
                       </div>
                     ) : (
                       <Select
@@ -434,26 +574,37 @@ export default function CreditCardDebt() {
                       </Select>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label>Borrower Name *</Label>
-                      <Input
-                        value={debtForm.borrowerName}
-                        onChange={(e) => setDebtForm({ ...debtForm, borrowerName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Amount Taken (₹) *</Label>
-                      <Input
-                        type="number"
-                        placeholder="e.g. 50000"
-                        value={debtForm.amount}
-                        onChange={(e) => setDebtForm({ ...debtForm, amount: e.target.value })}
-                        required
-                      />
-                    </div>
+
+                  <div className="space-y-1">
+                    <Label>Assign To Person *</Label>
+                    <Select
+                      value={debtForm.personId}
+                      onValueChange={(val) => setDebtForm({ ...debtForm, personId: val })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select contact" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {persons?.map(p => (
+                          <SelectItem key={p.id} value={p.id.toString()}>
+                            {p.name} {p.relationship ? `(${p.relationship})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  <div className="space-y-1">
+                    <Label>Amount Assigned (₹) *</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 35000"
+                      value={debtForm.amount}
+                      onChange={(e) => setDebtForm({ ...debtForm, amount: e.target.value })}
+                      required
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label>Interest Rate (Annual %)*</Label>
@@ -475,7 +626,7 @@ export default function CreditCardDebt() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label>Date Taken *</Label>
+                    <Label>Start Date *</Label>
                     <Input
                       type="date"
                       value={debtForm.date}
@@ -486,13 +637,13 @@ export default function CreditCardDebt() {
                   <div className="space-y-1">
                     <Label>Notes / Description</Label>
                     <Textarea
-                      placeholder="e.g. Purchased Sunny's mobile phone"
+                      placeholder="e.g. Assigned portion of SBI Card for brother's mobile purchase"
                       value={debtForm.notes}
                       onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })}
                     />
                   </div>
                   <Button type="submit" disabled={createDebt.isPending} className="w-full">
-                    {createDebt.isPending ? "Logging..." : "Log Borrowing"}
+                    {createDebt.isPending ? "Assigning..." : "Assign Balance"}
                   </Button>
                 </form>
               </DialogContent>
@@ -514,13 +665,13 @@ export default function CreditCardDebt() {
 
           <Card className="glass-panel border-border/40 bg-gradient-to-br from-rose-500/5 to-red-500/5 border-rose-500/10">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Sunny's Credit Card Debt</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Allocated Debt</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-rose-600 dark:text-rose-400 number-display">
-                {formatCurrency(totalSunnyDebt)}
+                {formatCurrency(totalCcDebt)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Total borrowings pending on cards</p>
+              <p className="text-xs text-muted-foreground mt-1">Total balances assigned to other individuals</p>
             </CardContent>
           </Card>
 
@@ -547,13 +698,13 @@ export default function CreditCardDebt() {
                     <TrendingUp className="h-5 w-5 text-rose-500 animate-pulse" /> Compounding Growth Curve Projections
                   </CardTitle>
                   <CardDescription>
-                    Visualizing how Sunny's {selectedDebt ? formatCurrency(selectedDebt.amount) : ""} debt compounds monthly at {selectedDebt ? selectedDebt.interestRate / 100 : 0}% APR
+                    Visualizing how {selectedDebt ? (persons?.find(p => p.id === selectedDebt.personId)?.name || selectedDebt.borrowerName) : ""}'s {selectedDebt ? formatCurrency(selectedDebt.amount) : ""} debt compounds monthly if left unpaid
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="text-xs text-muted-foreground whitespace-nowrap">Selected Debt:</Label>
                   <Select
-                    value={selectedDebtId?.toString() || debts[0]?.id.toString()}
+                    value={currentSelectedDebtId.toString()}
                     onValueChange={(val) => setSelectedDebtId(parseInt(val))}
                   >
                     <SelectTrigger className="w-[180px] h-8">
@@ -562,7 +713,7 @@ export default function CreditCardDebt() {
                     <SelectContent>
                       {debts.map(d => (
                         <SelectItem key={d.id} value={d.id.toString()}>
-                          {d.borrowerName} - {formatCurrency(d.amount)}
+                          {persons?.find(p => p.id === d.personId)?.name || d.borrowerName} - {formatCurrency(d.amount)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -593,13 +744,13 @@ export default function CreditCardDebt() {
             <Card className="glass-panel border-border/40">
               <CardHeader>
                 <CardTitle className="text-base font-bold">Compounding Mechanics</CardTitle>
-                <CardDescription>Sunny's Debt growth calculation summary</CardDescription>
+                <CardDescription>Debt growth calculation summary</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {selectedDebt ? (
                   <>
                     <div className="flex justify-between border-b pb-2">
-                      <span className="text-xs text-muted-foreground">Original principal:</span>
+                      <span className="text-xs text-muted-foreground">Outstanding principal:</span>
                       <span className="text-sm font-bold">{formatCurrency(selectedDebt.amount)}</span>
                     </div>
                     <div className="flex justify-between border-b pb-2">
@@ -625,7 +776,7 @@ export default function CreditCardDebt() {
                     <div className="rounded-lg bg-amber-500/5 border border-amber-500/15 p-3 text-xs text-amber-600 dark:text-amber-400 flex gap-2">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       <p>
-                        Sunny's debt accumulates interest monthly. Not paying card dues adds late fee charges, leading to exponential compounding growth.
+                        Debt accumulates interest. Run statement charging options monthly to distribute actual incurred costs.
                       </p>
                     </div>
                   </>
@@ -640,7 +791,8 @@ export default function CreditCardDebt() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="cards">Registered Cards</TabsTrigger>
-            <TabsTrigger value="debts">Sunny's Debt Lines</TabsTrigger>
+            <TabsTrigger value="debts">Debt Allocations</TabsTrigger>
+            {selectedDebt && <TabsTrigger value="ledger">Ledger Audit Trail</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="cards" className="mt-0">
@@ -653,7 +805,7 @@ export default function CreditCardDebt() {
                   <div>
                     <h3 className="text-lg font-semibold">No Credit Cards Added</h3>
                     <CardDescription className="max-w-sm mt-1">
-                      Add your credit cards to begin linking Sunny's debt lines.
+                      Add your credit cards to begin linking debt lines.
                     </CardDescription>
                   </div>
                   <Button onClick={() => setIsCardOpen(true)} className="mt-2">
@@ -682,7 +834,7 @@ export default function CreditCardDebt() {
                       </CardHeader>
                       <CardContent className="py-4 space-y-4">
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Sunny's Debt:</span>
+                          <span className="text-muted-foreground">Assigned Debt:</span>
                           <span className="font-bold text-rose-600 dark:text-rose-400">{formatCurrency(activeCardDebt)}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs border-t pt-3 text-muted-foreground">
@@ -712,7 +864,7 @@ export default function CreditCardDebt() {
               <CardContent className="p-0">
                 {debts && debts.length === 0 ? (
                   <div className="text-center py-16 text-muted-foreground">
-                    No borrowing debt lines logged. Click <strong>Log Sunny's Borrowing</strong> to record credit card transactions.
+                    No borrowing debt lines logged. Click <strong>Assign Balance</strong> to record credit card transactions.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -721,8 +873,10 @@ export default function CreditCardDebt() {
                         <tr className="border-b bg-muted/30 text-muted-foreground font-semibold">
                           <th className="py-3 px-4 text-left">Date</th>
                           <th className="py-3 px-4 text-left">Credit Card</th>
+                          <th className="py-3 px-4 text-left">Borrower</th>
                           <th className="py-3 px-4 text-left">Reason / Notes</th>
-                          <th className="py-3 px-4 text-right">Borrowed</th>
+                          <th className="py-3 px-4 text-right">Net Owed Balance</th>
+                          <th className="py-3 px-4 text-center">Record Repayment</th>
                           <th className="py-3 px-4 text-center">Receipt Proof</th>
                           <th className="py-3 px-4 text-center">Actions</th>
                         </tr>
@@ -730,6 +884,7 @@ export default function CreditCardDebt() {
                       <tbody>
                         {debts?.map((debt) => {
                           const card = cards?.find(c => c.id === debt.creditCardId);
+                          const person = persons?.find(p => p.id === debt.personId);
                           return (
                             <tr key={debt.id} className="border-b hover:bg-muted/10 transition-colors">
                               <td className="py-3.5 px-4 text-left font-medium">
@@ -737,6 +892,16 @@ export default function CreditCardDebt() {
                               </td>
                               <td className="py-3.5 px-4 text-left font-medium text-foreground">
                                 {card ? card.name : `Card #${debt.creditCardId}`}
+                              </td>
+                              <td className="py-3.5 px-4 text-left">
+                                <span className="font-semibold text-foreground">
+                                  {person?.name || debt.borrowerName}
+                                </span>
+                                {person?.relationship && (
+                                  <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                                    {person.relationship}
+                                  </span>
+                                )}
                               </td>
                               <td className="py-3.5 px-4 text-left max-w-xs truncate text-muted-foreground">
                                 {debt.notes || "-"}
@@ -748,10 +913,20 @@ export default function CreditCardDebt() {
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="h-8 text-xs hover:bg-emerald-500/10 hover:text-emerald-600"
+                                  onClick={() => openRepaymentModalForDebt(debt.id)}
+                                >
+                                  Record Payback
+                                </Button>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   className="h-8 gap-1 text-xs"
                                   onClick={() => handlePrint(debt.id)}
                                 >
-                                  <Printer className="h-3 w-3" /> Statement Proof
+                                  <Printer className="h-3 w-3" /> Ledger Proof
                                 </Button>
                               </td>
                               <td className="py-3.5 px-4 text-center">
@@ -774,8 +949,216 @@ export default function CreditCardDebt() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {selectedDebt && (
+            <TabsContent value="ledger" className="mt-0">
+              <Card className="glass-panel border-border/40 overflow-hidden">
+                <CardHeader className="pb-2 flex justify-between items-center flex-row">
+                  <div>
+                    <CardTitle className="text-base font-bold">Ledger Transactions</CardTitle>
+                    <CardDescription>
+                      Complete audit history for debt allocation of {formatCurrency(selectedDebt.amount)} on {cards?.find(c => c.id === selectedDebt.creditCardId)?.name}
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    className="gap-1.5" 
+                    size="sm"
+                    onClick={() => openRepaymentModalForDebt(selectedDebt.id)}
+                  >
+                    <Receipt className="h-3.5 w-3.5" /> Add Repayment
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {ledgerLoading ? (
+                    <div className="p-8 text-center"><Skeleton className="h-20 w-full" /></div>
+                  ) : ledger && ledger.length === 0 ? (
+                    <div className="text-center py-16 text-muted-foreground">No ledger items recorded.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/30 text-muted-foreground font-semibold">
+                            <th className="py-3 px-4 text-left">Date</th>
+                            <th className="py-3 px-4 text-left">Type</th>
+                            <th className="py-3 px-4 text-left">Description</th>
+                            <th className="py-3 px-4 text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ledger?.map((tx) => (
+                            <tr key={tx.id} className="border-b hover:bg-muted/10 transition-colors">
+                              <td className="py-3 px-4 text-left font-medium">
+                                {formatDate(new Date(tx.date))}
+                              </td>
+                              <td className="py-3 px-4 text-left">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                  tx.type === "principal" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" :
+                                  tx.type === "interest" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :
+                                  tx.type === "fee" ? "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300" :
+                                  "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                }`}>
+                                  {tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-left text-muted-foreground">
+                                {tx.notes || "-"}
+                              </td>
+                              <td className={`py-3 px-4 text-right font-bold ${
+                                tx.type === "payment" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
+                              }`}>
+                                {tx.type === "payment" ? "-" : ""}{formatCurrency(tx.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
+
+      {/* Proportional CC Statement Charges distributor Dialog */}
+      <Dialog open={isStatementOpen} onOpenChange={setIsStatementOpen}>
+        <DialogContent className="animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Landmark className="h-5 w-5 text-indigo-500" /> Apply Monthly Card Statement
+            </DialogTitle>
+            <CardDescription>
+              Calculate and apply proportional interest & late fees to all borrowers carrying balances on this card.
+            </CardDescription>
+          </DialogHeader>
+          <form onSubmit={handleStatementSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <Label>Select Credit Card *</Label>
+              <Select
+                value={statementForm.creditCardId}
+                onValueChange={handleCardSelectForStatement}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select card" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cards?.map(c => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Total CC Statement Balance (₹) *</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 150000"
+                value={statementForm.totalStatementBalance}
+                onChange={(e) => setStatementForm({ ...statementForm, totalStatementBalance: e.target.value })}
+                required
+              />
+              <span className="text-[10px] text-muted-foreground block">
+                Total balance printed on the credit card statement (includes everyone's dues).
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label>Total Card Interest Charged (₹)</Label>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={statementForm.interestCharged}
+                  onChange={(e) => setStatementForm({ ...statementForm, interestCharged: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Total Card Fees Charged (₹)</Label>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={statementForm.feesCharged}
+                  onChange={(e) => setStatementForm({ ...statementForm, feesCharged: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Statement Date *</Label>
+              <Input
+                type="date"
+                value={statementForm.date}
+                onChange={(e) => setStatementForm({ ...statementForm, date: e.target.value })}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" disabled={applyStatement.isPending}>
+              {applyStatement.isPending ? "Calculating & Applying..." : "Distribute Charges Proproportionally"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Repayment Dialog */}
+      <Dialog open={isRepaymentOpen} onOpenChange={setIsRepaymentOpen}>
+        <DialogContent className="animate-scale-in">
+          <DialogHeader>
+            <DialogTitle>Record CC Debt Repayment</DialogTitle>
+            <CardDescription>Log a payment returned by the borrower to settle their card debt.</CardDescription>
+          </DialogHeader>
+          <form onSubmit={handleRepaymentSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <Label>Debt Allocation *</Label>
+              <Select
+                value={repaymentForm.debtId}
+                onValueChange={(val) => setRepaymentForm({ ...repaymentForm, debtId: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select borrowing line" />
+                </SelectTrigger>
+                <SelectContent>
+                  {debts?.map(d => (
+                    <SelectItem key={d.id} value={d.id.toString()}>
+                      {persons?.find(p => p.id === d.personId)?.name || d.borrowerName} ({formatCurrency(d.amount)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Payment Amount (₹) *</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 5000"
+                value={repaymentForm.amount}
+                onChange={(e) => setRepaymentForm({ ...repaymentForm, amount: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Date Received *</Label>
+              <Input
+                type="date"
+                value={repaymentForm.date}
+                onChange={(e) => setRepaymentForm({ ...repaymentForm, date: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Repayment Notes (Optional)</Label>
+              <Textarea
+                placeholder="e.g. Sunny returned cash or bank transfer reference..."
+                value={repaymentForm.notes}
+                onChange={(e) => setRepaymentForm({ ...repaymentForm, notes: e.target.value })}
+              />
+            </div>
+            <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={recordCCRepayment.isPending}>
+              {recordCCRepayment.isPending ? "Logging..." : "Log Repayment"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Card Confirm */}
       <Dialog open={deleteCardId !== null} onOpenChange={(open) => !open && setDeleteCardId(null)}>

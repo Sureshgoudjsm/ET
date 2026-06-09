@@ -11,6 +11,7 @@ import MonthView from "./pages/MonthView";
 import YearView from "./pages/YearView";
 import BalanceTracker from "./pages/BalanceTracker";
 import Persons from "./pages/Persons";
+import PersonDetail from "./pages/PersonDetail";
 import GoldLoans from "./pages/GoldLoans";
 import CreditCardDebt from "./pages/CreditCardDebt";
 import ChittiSavings from "./pages/ChittiSavings";
@@ -52,6 +53,7 @@ function Router() {
           <Route path="/year" component={YearView} />
           <Route path="/balance" component={BalanceTracker} />
           <Route path="/persons" component={Persons} />
+          <Route path="/persons/:id" component={PersonDetail} />
           <Route path="/settings" component={Settings} />
           <Route path="/notifications" component={Notifications} />
           <Route path="/export" component={ExportData} />

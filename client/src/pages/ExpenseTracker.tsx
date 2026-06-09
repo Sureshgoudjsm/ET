@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus, Edit2, Trash2, Receipt, Search, Filter, AlertCircle, ShoppingBag, Landmark, Settings } from "lucide-react";
+import { Plus, Edit2, Trash2, Receipt, Search, Filter, AlertCircle, ShoppingBag, Landmark, Settings, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend } from "recharts";
@@ -20,6 +20,8 @@ type ExpenseFormData = {
   date: string;
   category: string;
   description: string;
+  isProxy: number;
+  personId: string;
 };
 
 const emptyForm: ExpenseFormData = {
@@ -27,6 +29,8 @@ const emptyForm: ExpenseFormData = {
   date: new Date().toISOString().split("T")[0],
   category: "",
   description: "",
+  isProxy: 0,
+  personId: "",
 };
 
 const CATEGORIES = [
@@ -69,6 +73,10 @@ export default function ExpenseTracker() {
     enabled: !!user,
   });
 
+  const { data: persons } = trpc.person.list.useQuery(undefined, {
+    enabled: !!user,
+  });
+
   const createExpense = trpc.expense.create.useMutation({
     onSuccess: () => {
       toast.success("Expense logged successfully");
@@ -77,6 +85,7 @@ export default function ExpenseTracker() {
       utils.expense.list.invalidate();
       utils.expense.getBreakdown.invalidate();
       utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Failed to log expense");
@@ -90,6 +99,7 @@ export default function ExpenseTracker() {
       utils.expense.list.invalidate();
       utils.expense.getBreakdown.invalidate();
       utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Failed to update expense");
@@ -103,6 +113,7 @@ export default function ExpenseTracker() {
       utils.expense.list.invalidate();
       utils.expense.getBreakdown.invalidate();
       utils.balance.getDashboardSummary.invalidate();
+      utils.balance.getAllBalances.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Failed to delete expense");
@@ -115,11 +126,17 @@ export default function ExpenseTracker() {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (formData.isProxy === 1 && !formData.personId) {
+      toast.error("Please select a person for the proxy payment");
+      return;
+    }
     createExpense.mutate({
       amount: Math.round(parseFloat(formData.amount) * 100),
       category: formData.category,
       date: new Date(formData.date),
       description: formData.description || undefined,
+      isProxy: formData.isProxy,
+      personId: formData.isProxy === 1 ? parseInt(formData.personId) : null,
     });
   };
 
@@ -129,12 +146,18 @@ export default function ExpenseTracker() {
       toast.error("All required fields must be filled");
       return;
     }
+    if (editExpense.isProxy === 1 && !editExpense.personId) {
+      toast.error("Please select a person for the proxy payment");
+      return;
+    }
     updateExpense.mutate({
       id: editExpense.id,
       amount: Math.round(parseFloat(editExpense.amount) * 100),
       category: editExpense.category,
       date: new Date(editExpense.date),
       description: editExpense.description || undefined,
+      isProxy: editExpense.isProxy,
+      personId: editExpense.isProxy === 1 ? parseInt(editExpense.personId) : null,
     });
   };
 
@@ -145,6 +168,8 @@ export default function ExpenseTracker() {
       category: exp.category,
       date: new Date(exp.date).toISOString().split("T")[0],
       description: exp.description || "",
+      isProxy: exp.isProxy ?? 0,
+      personId: exp.personId?.toString() || "",
     });
   };
 
@@ -269,6 +294,52 @@ export default function ExpenseTracker() {
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />
+              </div>
+
+              {/* Proxy Expense Option */}
+              <div className="space-y-3 border-t pt-3 border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Is this expense for you or someone else?</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={formData.isProxy === 0 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, isProxy: 0, personId: "" })}
+                    >
+                      For Me
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.isProxy === 1 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, isProxy: 1 })}
+                    >
+                      Someone Else
+                    </Button>
+                  </div>
+                </div>
+
+                {formData.isProxy === 1 && (
+                  <div className="space-y-1 animate-fade-in">
+                    <Label>Select Person *</Label>
+                    <Select
+                      value={formData.personId}
+                      onValueChange={(val) => setFormData({ ...formData, personId: val })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select contact" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {persons?.map((p) => (
+                          <SelectItem key={p.id} value={p.id.toString()}>
+                            {p.name} {p.relationship ? `(${p.relationship})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -464,7 +535,14 @@ export default function ExpenseTracker() {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-left max-w-xs truncate text-muted-foreground">
-                          {exp.description || "-"}
+                          <div className="flex flex-col gap-1.5 py-1">
+                            <span className="truncate">{exp.description || "-"}</span>
+                            {exp.isProxy === 1 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-500 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full w-max">
+                                <Users className="h-2.5 w-2.5" /> For {persons?.find(p => p.id === exp.personId)?.name || `Person #${exp.personId}`}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 text-right font-bold text-foreground">
                           {formatCurrency(exp.amount)}
@@ -546,6 +624,52 @@ export default function ExpenseTracker() {
                   onChange={(e) => setEditExpense({ ...editExpense, date: e.target.value })}
                   required
                 />
+              </div>
+
+              {/* Proxy Expense Option */}
+              <div className="space-y-3 border-t pt-3 border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Is this expense for you or someone else?</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={editExpense.isProxy === 0 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setEditExpense({ ...editExpense, isProxy: 0, personId: "" })}
+                    >
+                      For Me
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={editExpense.isProxy === 1 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setEditExpense({ ...editExpense, isProxy: 1 })}
+                    >
+                      Someone Else
+                    </Button>
+                  </div>
+                </div>
+
+                {editExpense.isProxy === 1 && (
+                  <div className="space-y-1 animate-fade-in">
+                    <Label>Select Person *</Label>
+                    <Select
+                      value={editExpense.personId}
+                      onValueChange={(val) => setEditExpense({ ...editExpense, personId: val })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select contact" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {persons?.map((p) => (
+                          <SelectItem key={p.id} value={p.id.toString()}>
+                            {p.name} {p.relationship ? `(${p.relationship})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">

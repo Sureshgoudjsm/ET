@@ -33,6 +33,7 @@ export const persons = mysqlTable("persons", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
+  relationship: varchar("relationship", { length: 255 }),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -127,7 +128,8 @@ export const creditCardDebts = mysqlTable("credit_card_debts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   creditCardId: int("creditCardId").notNull(),
-  borrowerName: varchar("borrowerName", { length: 255 }).notNull(), // e.g. "Sunny"
+  personId: int("personId"),
+  borrowerName: varchar("borrowerName", { length: 255 }), // e.g. "Sunny"
   amount: int("amount").notNull(), // Amount in paise
   interestRate: int("interestRate").notNull(), // Custom rate override in basis points
   lateFee: int("lateFee").notNull(), // Custom late fee override in paise
@@ -139,6 +141,24 @@ export const creditCardDebts = mysqlTable("credit_card_debts", {
 
 export type CreditCardDebt = typeof creditCardDebts.$inferSelect;
 export type InsertCreditCardDebt = typeof creditCardDebts.$inferInsert;
+
+/**
+ * ccDebtTransactions table: Tracks payments, interest charges, and fees for credit card debts.
+ */
+export const ccDebtTransactions = mysqlTable("cc_debt_transactions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  creditCardDebtId: int("creditCardDebtId").notNull(),
+  type: mysqlEnum("type", ["principal", "interest", "fee", "payment"]).notNull(),
+  amount: int("amount").notNull(), // Amount in paise
+  date: timestamp("date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CcDebtTransaction = typeof ccDebtTransactions.$inferSelect;
+export type InsertCcDebtTransaction = typeof ccDebtTransactions.$inferInsert;
 
 /**
  * Chitti table: Stores chitti savings details
@@ -184,6 +204,8 @@ export type InsertChittiContribution = typeof chittiContributions.$inferInsert;
 export const generalExpenses = mysqlTable("general_expenses", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  personId: int("personId"),
+  isProxy: int("isProxy").default(0).notNull(), // 0 = personal, 1 = proxy for someone else
   amount: int("amount").notNull(), // Amount in paise
   date: timestamp("date").notNull(),
   category: varchar("category", { length: 100 }).notNull(), // e.g. "food", "transport", "utilities"

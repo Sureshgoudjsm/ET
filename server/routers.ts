@@ -11,6 +11,7 @@ import { invokeLLM } from "./_core/llm";
 // ============ Validation Schemas ============
 const PersonSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  relationship: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -45,7 +46,8 @@ const CreditCardSchema = z.object({
 
 const CreditCardDebtSchema = z.object({
   creditCardId: z.number().positive(),
-  borrowerName: z.string().min(1, "Borrower name is required"),
+  personId: z.number().positive().nullable(),
+  borrowerName: z.string().optional(),
   amount: z.number().positive("Amount must be positive"),
   interestRate: z.number().nonnegative(),
   lateFee: z.number().nonnegative(),
@@ -76,6 +78,8 @@ const GeneralExpenseSchema = z.object({
   date: z.date(),
   category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
+  personId: z.number().positive().nullable().optional(),
+  isProxy: z.number().min(0).max(1).optional(),
 });
 
 const GoldLoanSchema = z.object({
@@ -98,7 +102,7 @@ const personRouter = router({
 
   create: protectedProcedure.input(PersonSchema).mutation(async ({ ctx, input }) => {
     try {
-      await db.createPerson(ctx.user.id, input.name, input.notes);
+      await db.createPerson(ctx.user.id, input.name, input.relationship, input.notes);
       return { success: true };
     } catch (error) {
       console.error("Error creating person:", error);
@@ -114,7 +118,7 @@ const personRouter = router({
         if (!person || person.userId !== ctx.user.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
         }
-        await db.updatePerson(input.id, input.name, input.notes);
+        await db.updatePerson(input.id, input.name, input.relationship, input.notes);
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
@@ -137,6 +141,22 @@ const personRouter = router({
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to delete person" });
     }
   }),
+
+  getHistory: protectedProcedure
+    .input(z.object({ personId: z.number().positive() }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const person = await db.getPersonById(input.personId);
+        if (!person || person.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
+        }
+        return await db.getPersonHistory(ctx.user.id, input.personId);
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Error getting person history:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to get person history" });
+      }
+    }),
 });
 
 // ============ EMI Router ============
@@ -454,7 +474,7 @@ const creditCardRouter = router({
       await db.createCreditCardDebt(
         ctx.user.id,
         input.creditCardId,
-        input.borrowerName,
+        input.personId,
         input.amount,
         input.interestRate,
         input.lateFee,
@@ -500,6 +520,81 @@ const creditCardRouter = router({
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to delete credit card debt" });
     }
   }),
+
+  getLedger: protectedProcedure
+    .input(z.object({ debtId: z.number().positive() }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const debt = await db.getCreditCardDebtById(input.debtId);
+        if (!debt || debt.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
+        }
+        return await db.getCcDebtTransactions(ctx.user.id, input.debtId);
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Error fetching CC debt ledger:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch CC debt ledger" });
+      }
+    }),
+
+  recordPayment: protectedProcedure
+    .input(z.object({
+      debtId: z.number().positive(),
+      amount: z.number().positive("Amount must be positive"),
+      date: z.date(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const debt = await db.getCreditCardDebtById(input.debtId);
+        if (!debt || debt.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
+        }
+        await db.createCcDebtTransaction(
+          ctx.user.id,
+          input.debtId,
+          "payment",
+          input.amount,
+          input.date,
+          input.notes || "Repayment allocated to credit card debt"
+        );
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Error recording CC debt payment:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to record payment" });
+      }
+    }),
+
+  applyStatement: protectedProcedure
+    .input(z.object({
+      creditCardId: z.number().positive(),
+      totalStatementBalance: z.number().positive("Statement balance must be positive"),
+      interestCharged: z.number().nonnegative(),
+      feesCharged: z.number().nonnegative(),
+      date: z.date(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const card = await db.getCreditCardById(input.creditCardId);
+        if (!card || card.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
+        }
+        await db.applyCcStatementCharges(
+          ctx.user.id,
+          input.creditCardId,
+          input.totalStatementBalance,
+          input.interestCharged,
+          input.feesCharged,
+          input.date
+        );
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Error applying statement charges:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to apply statement charges" });
+      }
+    }),
 });
 
 // ============ Chitti Router ============
@@ -636,7 +731,15 @@ const expenseRouter = router({
 
   create: protectedProcedure.input(GeneralExpenseSchema).mutation(async ({ ctx, input }) => {
     try {
-      await db.createGeneralExpense(ctx.user.id, input.amount, input.date, input.category, input.description);
+      await db.createGeneralExpense(
+        ctx.user.id,
+        input.amount,
+        input.date,
+        input.category,
+        input.description,
+        input.personId,
+        input.isProxy
+      );
       return { success: true };
     } catch (error) {
       console.error("Error creating expense:", error);
@@ -652,7 +755,15 @@ const expenseRouter = router({
         if (!exp || exp.userId !== ctx.user.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
         }
-        await db.updateGeneralExpense(input.id, input.amount, input.date, input.category, input.description);
+        await db.updateGeneralExpense(
+          input.id,
+          input.amount,
+          input.date,
+          input.category,
+          input.description,
+          input.personId,
+          input.isProxy
+        );
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
